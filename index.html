@@ -9,21 +9,76 @@
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
 
     <style>
-        body { font-family: "微軟正黑體", sans-serif; background-color: #f0f2f5; margin: 0; padding: 0; color: #333; height: 100vh; overflow-y: auto; }
+        body { font-family: "微軟正黑體", sans-serif; background-color: #f0f2f5; margin: 0; padding: 0; color: #333; height: 100vh; overflow: hidden; }
         
         /* 一般容器 (學員端用) */
-        .container { max-width: 900px; margin: 0 auto; padding: 20px; padding-bottom: 100px; }
+        .container { max-width: 900px; margin: 0 auto; padding: 20px; padding-bottom: 100px; height: 100%; overflow-y: auto; }
         
-        /* 講師端專用佈局 */
+        /* === 講師端專用佈局 === */
         .teacher-layout {
-            display: grid;
-            grid-template-columns: 350px 1fr; /* 左側固定寬度，右側自適應 */
-            gap: 30px;
-            padding: 30px;
-            height: calc(100vh - 80px); /* 扣底部的空間 */
+            display: flex;
+            height: calc(100vh - 60px); /* 預留底部空間 */
+            width: 100%;
+            overflow: hidden;
             box-sizing: border-box;
-            align-items: start;
         }
+
+        /* 左側窗格 (修改重點：最小寬度改為 60px) */
+        .pane-left {
+            min-width: 60px; /* 原本是 250px，現在改小 */
+            max-width: 80vw;
+            background: #ffffff;
+            border-right: 1px solid #eee;
+            padding: 20px;
+            overflow-y: auto;
+            overflow-x: hidden; /* 防止縮太小時出現橫向卷軸 */
+            flex-shrink: 0; 
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            position: relative;
+        }
+
+        /* 拖曳條 */
+        .resizer {
+            width: 12px;
+            margin-left: -6px;
+            cursor: col-resize;
+            z-index: 100;
+            position: relative;
+            display: flex;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+        
+        .resizer::after {
+            content: "";
+            display: block;
+            width: 1px;
+            height: 100%;
+            background: #e0e0e0;
+            transition: all 0.2s;
+        }
+
+        .resizer:hover::after, .resizer.active::after {
+            background: #1976d2;
+            width: 2px;
+            box-shadow: 0 0 4px rgba(25, 118, 210, 0.5);
+        }
+
+        /* 右側窗格 */
+        .pane-right {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto; 
+            background: #f0f2f5;
+        }
+
+        .is-resizing {
+            cursor: col-resize !important;
+            user-select: none; 
+        }
+        .is-resizing iframe { pointer-events: none; }
 
         h1 { text-align: center; color: #444; margin-bottom: 20px; font-weight: 800; }
         .subtitle { text-align: center; color: #666; margin-bottom: 30px; font-size: 0.9rem; }
@@ -46,14 +101,13 @@
         .main-input:focus { border-color: #1976d2; background: #fdfdfd; }
         
         /* 提問列表 */
-        .q-list-container { overflow-y: auto; height: 100%; padding-right: 5px; } 
         .q-list { display: flex; flex-direction: column; gap: 15px; }
         .q-card { background: white; padding: 15px 20px; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); display: flex; gap: 15px; transition: all 0.3s ease; border-left: 5px solid transparent; }
         .q-card:hover { transform: translateY(-2px); box-shadow: 0 5px 15px rgba(0,0,0,0.1); }
         .q-card.is-mine { border-left-color: #1976d2; background: #fbfdff; }
         .q-card.is-editing { border: 2px dashed #1976d2; }
 
-        /* 左側按讚區 - 修改為藍色系 */
+        /* 左側按讚區 */
         .vote-section { display: flex; flex-direction: column; align-items: center; min-width: 50px; justify-content: center; }
         .vote-btn { 
             background: none; 
@@ -67,18 +121,13 @@
             align-items: center; 
             justify-content: center; 
             transition: 0.2s; 
-            color: #90a4ae; /* 預設灰色 */
+            color: #90a4ae;
             position: relative; 
         }
-        /* Hover 效果：變淺藍 */
         .vote-btn:hover { background: #e3f2fd; border-color: #90caf9; color: #1976d2; }
-        /* Active (已按讚) 效果：變深藍 */
         .vote-btn.active { background: #e3f2fd; border-color: #1976d2; color: #1976d2; }
         .vote-btn:disabled { opacity: 0.5; cursor: not-allowed; } 
-        
         .vote-count { font-weight: bold; font-size: 1rem; margin-top: 2px; }
-        
-        /* SVG 圖示設定 */
         .vote-icon-svg { width: 24px; height: 24px; fill: currentColor; }
 
         /* 右側內容區 */
@@ -90,20 +139,29 @@
         .action-link { cursor: pointer; color: #1976d2; text-decoration: underline; background: none; border: none; padding: 0; font-size: 0.85rem; }
         .action-link.delete { color: #d32f2f; }
 
-        /* --- 講師 QR Code 區 (左側) --- */
+        /* --- 講師 QR Code 區 --- */
         .qr-display-panel { 
-            background: white; 
-            padding: 20px; 
-            border-radius: 12px; 
-            box-shadow: 0 4px 12px rgba(0,0,0,0.08); 
             text-align: center; 
-            position: sticky; 
-            top: 20px;
+            width: 100%;
+            box-sizing: border-box;
+            padding-top: 20px;
         }
-        .qr-img-large { width: 100%; max-width: 300px; height: auto; border-radius: 5px; border: 1px solid #eee; }
+        .qr-img-large { width: 100%; height: auto; border-radius: 5px; border: 1px solid #eee; }
         .qr-placeholder { color: #999; padding: 50px 0; border: 2px dashed #ddd; border-radius: 10px; background: #fafafa; }
+        
+        .course-title-display {
+            margin-top: 20px;
+            font-size: 1.2rem;
+            font-weight: bold;
+            color: #333;
+            background: #fff8e1;
+            padding: 10px;
+            border-radius: 8px;
+            border: 1px dashed #ffd54f;
+            white-space: pre-wrap; 
+        }
 
-        /* --- 講師底部控制台 (Bottom Sheet) --- */
+        /* --- 講師底部控制台 --- */
         .bottom-control-bar {
             position: fixed;
             bottom: 0;
@@ -148,45 +206,40 @@
         .control-group { display: flex; align-items: center; gap: 10px; }
         .control-label { color: #cfd8dc; font-size: 0.9rem; margin-right: 5px; }
         .upload-wrapper { display: flex; flex-direction: column; }
+        .full-width-input { padding: 8px; border-radius: 4px; border: none; font-size: 0.9rem; width: 250px;}
 
         /* RWD */
         @media (max-width: 850px) {
-            .teacher-layout { grid-template-columns: 1fr; padding: 10px; height: auto; }
-            .qr-display-panel { position: static; margin-bottom: 20px; max-width: 250px; margin: 0 auto 20px auto; }
-            .bottom-control-bar { padding-bottom: 20px; }
-            .control-content { flex-direction: column; align-items: stretch; }
-            .bottom-toggle-btn { width: 100px; }
+            .teacher-layout { flex-direction: column; overflow-y: auto; height: auto; padding-bottom: 80px;}
+            .pane-left { width: 100% !important; max-width: 100%; min-width: 0; flex-shrink: 0; border-right: none; border-bottom: 1px solid #eee; }
+            .resizer { display: none; }
+            .pane-right { overflow: visible; }
+            .container { height: auto; }
+            .full-width-input { width: 100%; }
         }
 
         .loading-mask { position: fixed; top:0; left:0; width:100%; height:100%; background: rgba(240,242,245,0.9); display: flex; justify-content: center; align-items: center; z-index: 9999; font-size: 1.5rem; color: #666; }
     </style>
 </head>
-<body>
+<body :class="{ 'is-resizing': isDragging }">
     <div id="app">
-        
-        <div v-if="isLoading" class="loading-mask">
-            <div>資料載入中...</div>
-        </div>
+        <div v-if="isLoading" class="loading-mask"><div>資料載入中...</div></div>
 
         <div v-if="!isTeacher" class="container">
             <h1>學員提問互動區</h1>
             <div class="subtitle">即時同步 • 匿名提問 • 互動按讚</div>
-            
             <div class="input-card">
                 <div class="input-row">
                     <input type="text" class="main-input" v-model="newQuestionText" placeholder="輸入您的問題或想法..." @keydown.enter="submitQuestion">
                     <button class="btn btn-primary" @click="submitQuestion" :disabled="!newQuestionText.trim()">送出</button>
                 </div>
             </div>
-
             <div class="q-list">
                 <transition-group name="list">
                     <div v-for="q in sortedQuestions" :key="q.id" class="q-card" :class="{ 'is-mine': isMyQuestion(q) }">
                         <div class="vote-section">
                             <button class="vote-btn" :class="{ 'active': hasLiked(q.id) }" @click="toggleLike(q)" :disabled="processingLikes[q.id]">
-                                <svg class="vote-icon-svg" viewBox="0 0 24 24">
-                                    <path d="M1 21h4V9H1v12zm22-11c0-1.1-.9-2-2-2h-6.31l.95-4.57.03-.32c0-.41-.17-.79-.44-1.06L14.17 1 7.59 7.59C7.22 7.95 7 8.45 7 9v10c0 1.1.9 2 2 2h9c.83 0 1.54-.5 1.84-1.22l3.02-7.05c.09-.23.14-.47.14-.73v-1.91l-.01-.01L23 10z"/>
-                                </svg>
+                                <svg class="vote-icon-svg" viewBox="0 0 24 24"><path d="M1 21h4V9H1v12zm22-11c0-1.1-.9-2-2-2h-6.31l.95-4.57.03-.32c0-.41-.17-.79-.44-1.06L14.17 1 7.59 7.59C7.22 7.95 7 8.45 7 9v10c0 1.1.9 2 2 2h9c.83 0 1.54-.5 1.84-1.22l3.02-7.05c.09-.23.14-.47.14-.73v-1.91l-.01-.01L23 10z"/></svg>
                                 <span class="vote-count">{{ q.likes || 0 }}</span>
                             </button>
                         </div>
@@ -195,7 +248,6 @@
                                 <div class="q-text">{{ q.text }}</div>
                                 <div class="q-meta">
                                     <span v-if="showTimeSetting">{{ formatTime(q.timestamp) }}</span>
-                                    
                                     <div class="actions">
                                         <span v-if="canEdit(q)" class="action-link" @click="startEdit(q)">編輯</span>
                                         <span v-if="canDelete(q)" class="action-link delete" @click="deleteQuestion(q.id)">刪除</span>
@@ -204,10 +256,7 @@
                             </div>
                             <div v-else>
                                 <input type="text" v-model="editingText" class="main-input" style="width: 95%; margin-bottom: 10px;" ref="editInput" @keydown.enter="saveEdit(q.id)">
-                                <div class="actions">
-                                    <button class="btn btn-success btn-sm" @click="saveEdit(q.id)">儲存</button>
-                                    <button class="btn btn-outline btn-sm" @click="cancelEdit">取消</button>
-                                </div>
+                                <div class="actions"><button class="btn btn-success btn-sm" @click="saveEdit(q.id)">儲存</button><button class="btn btn-outline btn-sm" @click="cancelEdit">取消</button></div>
                             </div>
                         </div>
                     </div>
@@ -217,44 +266,33 @@
         </div>
 
         <div v-if="isTeacher" class="teacher-layout">
-            
-            <div class="qr-display-panel">
-                <h3 style="margin-top:0; color:#444;">掃描加入提問</h3>
-                <div v-if="qrCodeUrl">
-                    <img :src="qrCodeUrl" class="qr-img-large" alt="QR Code">
-                </div>
-                <div v-else class="qr-placeholder">
-                    尚無 QR Code<br>
-                    <span style="font-size:0.8rem">請至下方功能區上傳</span>
+            <div class="pane-left" :style="{ width: leftWidth + 'px' }">
+                <div class="qr-display-panel">
+                    <h3 style="margin-top:0; color:#444;">掃描加入提問</h3>
+                    <div v-if="qrCodeUrl"><img :src="qrCodeUrl" class="qr-img-large" alt="QR Code" draggable="false"></div>
+                    <div v-else class="qr-placeholder">尚無 QR Code<br><span style="font-size:0.8rem">請至下方功能區上傳</span></div>
+                    <div v-if="courseTitle" class="course-title-display">{{ courseTitle }}</div>
                 </div>
             </div>
-
-            <div class="q-list-container">
+            <div class="resizer" :class="{ 'active': isDragging }" @mousedown="startDrag"></div>
+            <div class="pane-right">
                 <div class="q-list">
                     <transition-group name="list">
                         <div v-for="q in sortedQuestions" :key="q.id" class="q-card" :class="{ 'is-editing': editingId === q.id }">
                             <div class="vote-section">
-                                <div style="font-weight:bold; color:#1976d2; font-size:1.2rem;">{{ q.likes || 0 }}</div>
-                                <div style="font-size:0.8rem; color:#888;">按讚</div>
+                                <div style="font-weight:bold; color:#1976d2; font-size:1.2rem;">{{ q.likes || 0 }}</div><div style="font-size:0.8rem; color:#888;">按讚</div>
                             </div>
                             <div class="content-section">
                                 <div v-if="editingId !== q.id">
                                     <div class="q-text">{{ q.text }}</div>
                                     <div class="q-meta">
                                         <span v-if="showTimeSetting">{{ formatTime(q.timestamp) }}</span>
-
-                                        <div class="actions">
-                                            <span class="action-link" @click="startEdit(q)">編輯</span>
-                                            <span class="action-link delete" @click="deleteQuestion(q.id)">刪除</span>
-                                        </div>
+                                        <div class="actions"><span class="action-link" @click="startEdit(q)">編輯</span><span class="action-link delete" @click="deleteQuestion(q.id)">刪除</span></div>
                                     </div>
                                 </div>
                                 <div v-else>
                                     <input type="text" v-model="editingText" class="main-input" style="width: 95%; margin-bottom: 10px;" ref="editInput" @keydown.enter="saveEdit(q.id)">
-                                    <div class="actions">
-                                        <button class="btn btn-success btn-sm" @click="saveEdit(q.id)">儲存</button>
-                                        <button class="btn btn-outline btn-sm" @click="cancelEdit">取消</button>
-                                    </div>
+                                    <div class="actions"><button class="btn btn-success btn-sm" @click="saveEdit(q.id)">儲存</button><button class="btn btn-outline btn-sm" @click="cancelEdit">取消</button></div>
                                 </div>
                             </div>
                         </div>
@@ -265,230 +303,109 @@
         </div>
 
         <div v-if="isTeacher" class="bottom-control-bar" :class="{ 'hidden': !showControls }">
-            <div class="bottom-toggle-btn" @click="showControls = !showControls">
-                {{ showControls ? '▼ 隱藏' : '▲ 設定' }}
-            </div>
-            
+            <div class="bottom-toggle-btn" @click="showControls = !showControls">{{ showControls ? '▼ 隱藏' : '▲ 設定' }}</div>
             <div class="control-content">
-                <div class="control-group">
-                    <span class="control-label">排序：</span>
-                    <button class="btn" :class="sortBy === 'likes' ? 'btn-primary' : 'btn-dark'" @click="sortBy = 'likes'">
-                        👍 熱門
-                    </button>
-                    <button class="btn" :class="sortBy === 'time' ? 'btn-primary' : 'btn-dark'" @click="sortBy = 'time'">
-                        🕒 時間
-                    </button>
-                </div>
-
-                <div class="control-group">
-                    <span class="control-label">提問時間：</span>
-                    <button class="btn" :class="showTimeSetting ? 'btn-toggle-on' : 'btn-toggle-off'" @click="toggleTimeSetting">
-                        {{ showTimeSetting ? '👁️ 顯示中' : '🙈 已隱藏' }}
-                    </button>
-                </div>
-
-                <div class="control-group upload-wrapper">
-                    <span class="control-label">更換 QR Code：</span>
-                    <input type="file" accept="image/*" @change="handleQrUpload" style="color: white; font-size: 0.9rem;">
-                </div>
-
-                <div class="control-group">
-                    <button class="btn btn-danger" @click="clearAllData">
-                        🗑️ 清空所有問題
-                    </button>
-                </div>
+                <div class="control-group"><span class="control-label">自訂標題：</span><input type="text" v-model="courseTitle" placeholder="例如：12/25 專案管理實務" class="full-width-input" @change="saveSettings"></div>
+                <div class="control-group"><span class="control-label">排序：</span><button class="btn" :class="sortBy === 'likes' ? 'btn-primary' : 'btn-dark'" @click="sortBy = 'likes'">👍 熱門</button><button class="btn" :class="sortBy === 'time' ? 'btn-primary' : 'btn-dark'" @click="sortBy = 'time'">🕒 時間</button></div>
+                <div class="control-group"><span class="control-label">時間：</span><button class="btn" :class="showTimeSetting ? 'btn-toggle-on' : 'btn-toggle-off'" @click="toggleTimeSetting">{{ showTimeSetting ? '👁️' : '🙈' }}</button></div>
+                <div class="control-group upload-wrapper"><span class="control-label">更換QR：</span><input type="file" accept="image/*" @change="handleQrUpload" style="color: white; font-size: 0.8rem; width: 180px;"></div>
+                <div class="control-group"><button class="btn btn-danger" @click="clearAllData">🗑️ 清空</button></div>
             </div>
         </div>
-
     </div>
 
     <script>
         const { createApp } = Vue;
-
-        const firebaseConfig = {
-            apiKey: "AIzaSyDUPGhkiJgxeYDYHqEaXCYvKh2vdTGqypw",
-            authDomain: "class-discussion-01.firebaseapp.com",
-            databaseURL: "https://class-discussion-01-default-rtdb.firebaseio.com",
-            projectId: "class-discussion-01",
-            storageBucket: "class-discussion-01.firebasestorage.app",
-            messagingSenderId: "724687365020",
-            appId: "1:724687365020:web:380b5d85872dc2d9b85e59",
-            measurementId: "G-XYN5JV48T7"
-        };
-
+        const firebaseConfig = { apiKey: "AIzaSyDUPGhkiJgxeYDYHqEaXCYvKh2vdTGqypw", authDomain: "class-discussion-01.firebaseapp.com", databaseURL: "https://class-discussion-01-default-rtdb.firebaseio.com", projectId: "class-discussion-01", storageBucket: "class-discussion-01.firebasestorage.app", messagingSenderId: "724687365020", appId: "1:724687365020:web:380b5d85872dc2d9b85e59", measurementId: "G-XYN5JV48T7" };
         firebase.initializeApp(firebaseConfig);
         const db = firebase.database();
 
         createApp({
             data() {
                 return {
-                    isLoading: true,
-                    isTeacher: false,
-                    showControls: true, 
-                    
-                    questions: [],
-                    newQuestionText: '',
-                    
-                    editingId: null,
-                    editingText: '',
-
-                    myAuthorId: '',
-                    myLikedIds: [],
-                    processingLikes: {}, 
-                    
-                    sortBy: 'likes', 
-                    qrCodeUrl: '',
-                    
-                    showTimeSetting: true 
+                    isLoading: true, isTeacher: false, showControls: true, 
+                    questions: [], newQuestionText: '', editingId: null, editingText: '',
+                    myAuthorId: '', myLikedIds: [], processingLikes: {}, 
+                    sortBy: 'likes', qrCodeUrl: '', showTimeSetting: true, courseTitle: '',
+                    leftWidth: 350, isDragging: false
                 }
             },
             computed: {
                 sortedQuestions() {
                     let list = [...this.questions];
                     if (this.sortBy === 'likes') {
-                        list.sort((a, b) => {
-                            const likesA = a.likes || 0;
-                            const likesB = b.likes || 0;
-                            if (likesA !== likesB) return likesB - likesA;
-                            return b.timestamp - a.timestamp;
-                        });
-                    } else {
-                        list.sort((a, b) => b.timestamp - a.timestamp);
-                    }
+                        list.sort((a, b) => { const likesA = a.likes || 0; const likesB = b.likes || 0; if (likesA !== likesB) return likesB - likesA; return b.timestamp - a.timestamp; });
+                    } else { list.sort((a, b) => b.timestamp - a.timestamp); }
                     return list;
                 }
             },
             mounted() {
                 let storedId = localStorage.getItem('qa_author_id');
-                if (!storedId) {
-                    storedId = 'user_' + Date.now() + '_' + Math.floor(Math.random() * 1000);
-                    localStorage.setItem('qa_author_id', storedId);
-                }
+                if (!storedId) { storedId = 'user_' + Date.now() + '_' + Math.floor(Math.random() * 1000); localStorage.setItem('qa_author_id', storedId); }
                 this.myAuthorId = storedId;
-
                 const storedLikes = localStorage.getItem('qa_liked_ids');
-                if (storedLikes) {
-                    this.myLikedIds = JSON.parse(storedLikes);
-                }
-
+                if (storedLikes) { this.myLikedIds = JSON.parse(storedLikes); }
                 const urlParams = new URLSearchParams(window.location.search);
-                if (urlParams.get('role') === 'teacher') {
-                    this.isTeacher = true;
-                } else {
-                    this.sortBy = 'time';
-                }
+                if (urlParams.get('role') === 'teacher') { this.isTeacher = true; } else { this.sortBy = 'time'; }
 
                 db.ref('qa_system/questions').on('value', snapshot => {
-                    const val = snapshot.val();
-                    this.isLoading = false;
-                    if (val) {
-                        this.questions = Object.keys(val).map(key => ({
-                            id: key,
-                            ...val[key]
-                        }));
-                    } else {
-                        this.questions = [];
-                    }
+                    const val = snapshot.val(); this.isLoading = false;
+                    if (val) { this.questions = Object.keys(val).map(key => ({ id: key, ...val[key] })); } else { this.questions = []; }
                 });
-
                 db.ref('qa_system/settings').on('value', snapshot => {
                     const settings = snapshot.val() || {};
-                    if (settings.qrCode) {
-                        this.qrCodeUrl = settings.qrCode;
-                    }
-                    if (settings.showTime !== undefined) {
-                        this.showTimeSetting = settings.showTime;
-                    } else {
-                        this.showTimeSetting = true; 
-                    }
+                    if (settings.qrCode) this.qrCodeUrl = settings.qrCode;
+                    if (settings.showTime !== undefined) this.showTimeSetting = settings.showTime; else this.showTimeSetting = true;
+                    if (settings.courseTitle) this.courseTitle = settings.courseTitle;
                 });
             },
             methods: {
+                startDrag(e) {
+                    this.isDragging = true; document.body.style.userSelect = 'none'; document.body.style.cursor = 'col-resize';
+                    window.addEventListener('mousemove', this.doDrag); window.addEventListener('mouseup', this.stopDrag);
+                },
+                doDrag(e) {
+                    if (this.isDragging) {
+                        const newWidth = e.clientX;
+                        // 修改重點：這裡的最小值限制設為 50
+                        if (newWidth > 50 && newWidth < window.innerWidth - 100) { this.leftWidth = newWidth; }
+                    }
+                },
+                stopDrag() {
+                    this.isDragging = false; document.body.style.userSelect = ''; document.body.style.cursor = '';
+                    window.removeEventListener('mousemove', this.doDrag); window.removeEventListener('mouseup', this.stopDrag);
+                },
+                saveSettings() { db.ref('qa_system/settings').update({ courseTitle: this.courseTitle }); },
                 submitQuestion() {
-                    const text = this.newQuestionText.trim();
-                    if (!text) return;
-
-                    const newRef = db.ref('qa_system/questions').push();
-                    newRef.set({
-                        text: text,
-                        timestamp: firebase.database.ServerValue.TIMESTAMP,
-                        likes: 0,
-                        authorId: this.myAuthorId
-                    }).then(() => {
-                        this.newQuestionText = '';
-                    });
+                    const text = this.newQuestionText.trim(); if (!text) return;
+                    db.ref('qa_system/questions').push({ text: text, timestamp: firebase.database.ServerValue.TIMESTAMP, likes: 0, authorId: this.myAuthorId }).then(() => { this.newQuestionText = ''; });
                 },
                 canEdit(q) { return this.isTeacher || q.authorId === this.myAuthorId; },
                 canDelete(q) { return this.isTeacher || q.authorId === this.myAuthorId; },
                 isMyQuestion(q) { return q.authorId === this.myAuthorId; },
-                startEdit(q) {
-                    this.editingId = q.id;
-                    this.editingText = q.text;
-                    this.$nextTick(() => { if(this.$refs.editInput && this.$refs.editInput[0]) this.$refs.editInput[0].focus(); });
-                },
+                startEdit(q) { this.editingId = q.id; this.editingText = q.text; this.$nextTick(() => { if(this.$refs.editInput && this.$refs.editInput[0]) this.$refs.editInput[0].focus(); }); },
                 cancelEdit() { this.editingId = null; this.editingText = ''; },
-                saveEdit(id) {
-                    if (!this.editingText.trim()) return;
-                    db.ref('qa_system/questions/' + id).update({ text: this.editingText }).then(() => { this.editingId = null; });
-                },
-                deleteQuestion(id) {
-                    if (confirm('確定要刪除這個問題嗎？')) {
-                        db.ref('qa_system/questions/' + id).remove();
-                    }
-                },
-                
+                saveEdit(id) { if (!this.editingText.trim()) return; db.ref('qa_system/questions/' + id).update({ text: this.editingText }).then(() => { this.editingId = null; }); },
+                deleteQuestion(id) { if (confirm('確定要刪除這個問題嗎？')) { db.ref('qa_system/questions/' + id).remove(); } },
                 hasLiked(id) { return this.myLikedIds.includes(id); },
                 toggleLike(q) {
-                    const id = q.id;
-                    if (this.processingLikes[id]) return;
-                    this.processingLikes[id] = true;
-
+                    const id = q.id; if (this.processingLikes[id]) return; this.processingLikes[id] = true;
                     const isLiked = this.hasLiked(id);
-                    const ref = db.ref('qa_system/questions/' + id + '/likes');
-                    
-                    ref.transaction((currentLikes) => {
-                        const val = currentLikes || 0;
-                        if (isLiked) {
-                            return val > 0 ? val - 1 : 0;
-                        } else {
-                            return val + 1;
-                        }
+                    db.ref('qa_system/questions/' + id + '/likes').transaction((currentLikes) => {
+                        const val = currentLikes || 0; return isLiked ? (val > 0 ? val - 1 : 0) : val + 1;
                     }).then(() => {
-                        if (isLiked) {
-                            this.myLikedIds = this.myLikedIds.filter(lid => lid !== id);
-                        } else {
-                            this.myLikedIds.push(id);
-                        }
-                        localStorage.setItem('qa_liked_ids', JSON.stringify(this.myLikedIds));
-                        this.processingLikes[id] = false;
-                    }).catch(() => {
-                        this.processingLikes[id] = false;
-                    });
+                        if (isLiked) { this.myLikedIds = this.myLikedIds.filter(lid => lid !== id); } else { this.myLikedIds.push(id); }
+                        localStorage.setItem('qa_liked_ids', JSON.stringify(this.myLikedIds)); this.processingLikes[id] = false;
+                    }).catch(() => { this.processingLikes[id] = false; });
                 },
-
-                toggleTimeSetting() {
-                    db.ref('qa_system/settings/showTime').set(!this.showTimeSetting);
-                },
-                clearAllData() {
-                    if (confirm('警告：這將會清空所有學員的提問！確定執行嗎？')) {
-                        db.ref('qa_system/questions').remove();
-                    }
-                },
+                toggleTimeSetting() { db.ref('qa_system/settings/showTime').set(!this.showTimeSetting); },
+                clearAllData() { if (confirm('警告：這將會清空所有學員的提問！確定執行嗎？')) { db.ref('qa_system/questions').remove(); } },
                 handleQrUpload(event) {
-                    const file = event.target.files[0];
-                    if (!file) return;
+                    const file = event.target.files[0]; if (!file) return;
                     if (file.size > 500 * 1024) { alert('圖片太大，請使用小於 500KB 的圖片'); return; }
-                    const reader = new FileReader();
-                    reader.onload = (e) => {
-                        db.ref('qa_system/settings/qrCode').set(e.target.result);
-                    };
-                    reader.readAsDataURL(file);
+                    const reader = new FileReader(); reader.onload = (e) => { db.ref('qa_system/settings/qrCode').set(e.target.result); }; reader.readAsDataURL(file);
                 },
-                formatTime(ts) {
-                    if (!ts) return '';
-                    const date = new Date(ts);
-                    return `${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
-                }
+                formatTime(ts) { if (!ts) return ''; const date = new Date(ts); return `${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`; }
             }
         }).mount('#app');
     </script>
