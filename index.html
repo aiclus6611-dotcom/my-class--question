@@ -11,73 +11,32 @@
     <style>
         body { font-family: "微軟正黑體", sans-serif; background-color: #f0f2f5; margin: 0; padding: 0; color: #333; height: 100vh; overflow: hidden; }
         
+        /* === 管理後台專用佈局 === */
+        .admin-container { max-width: 1000px; margin: 0 auto; padding: 40px 20px; overflow-y: auto; height: 100%; box-sizing: border-box; }
+        .admin-header { text-align: center; margin-bottom: 30px; color: #333; font-size: 1.8rem; font-weight: bold; display: flex; justify-content: center; align-items: center; gap: 10px; }
+        .admin-create-box { background: white; padding: 25px; border-radius: 10px; display: flex; gap: 15px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); margin-bottom: 30px; align-items: center; flex-wrap: wrap; }
+        .admin-create-box input { flex: 1; padding: 12px 15px; border: 1px solid #ddd; border-radius: 6px; font-size: 1.1rem; min-width: 250px; outline: none; transition: 0.3s; }
+        .admin-create-box input:focus { border-color: #4caf50; }
+        .admin-room-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px; padding-bottom: 50px; }
+        .room-card { background: white; border-radius: 10px; padding: 25px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); border-top: 5px solid #1976d2; position: relative; transition: transform 0.2s; }
+        .room-card:hover { transform: translateY(-3px); box-shadow: 0 6px 15px rgba(0,0,0,0.1); }
+        .room-title { font-size: 1.3rem; font-weight: bold; color: #333; margin-bottom: 10px; }
+        .room-date { color: #888; font-size: 0.9rem; margin-bottom: 20px; }
+        .btn-block { display: block; width: 100%; margin: 8px 0; padding: 10px; font-size: 1rem; border-radius: 6px; font-weight: bold; }
+
         /* 一般容器 (學員端用) */
-        .container { max-width: 900px; margin: 0 auto; padding: 20px; padding-bottom: 100px; height: 100%; overflow-y: auto; }
+        .container { max-width: 900px; margin: 0 auto; padding: 20px; padding-bottom: 100px; height: 100%; overflow-y: auto; box-sizing: border-box; }
         
         /* === 講師端專用佈局 === */
-        .teacher-layout {
-            display: flex;
-            height: calc(100vh - 60px); /* 預留底部空間 */
-            width: 100%;
-            overflow: hidden;
-            box-sizing: border-box;
-        }
+        .teacher-layout { display: flex; height: calc(100vh - 60px); width: 100%; overflow: hidden; box-sizing: border-box; }
 
-        /* 左側窗格 (修改重點：最小寬度改為 60px) */
-        .pane-left {
-            min-width: 60px; /* 原本是 250px，現在改小 */
-            max-width: 80vw;
-            background: #ffffff;
-            border-right: 1px solid #eee;
-            padding: 20px;
-            overflow-y: auto;
-            overflow-x: hidden; /* 防止縮太小時出現橫向卷軸 */
-            flex-shrink: 0; 
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            position: relative;
-        }
+        .pane-left { min-width: 60px; max-width: 80vw; background: #ffffff; border-right: 1px solid #eee; padding: 20px; overflow-y: auto; overflow-x: hidden; flex-shrink: 0; display: flex; flex-direction: column; align-items: center; position: relative; }
+        .resizer { width: 12px; margin-left: -6px; cursor: col-resize; z-index: 100; position: relative; display: flex; justify-content: center; flex-shrink: 0; }
+        .resizer::after { content: ""; display: block; width: 1px; height: 100%; background: #e0e0e0; transition: all 0.2s; }
+        .resizer:hover::after, .resizer.active::after { background: #1976d2; width: 2px; box-shadow: 0 0 4px rgba(25, 118, 210, 0.5); }
+        .pane-right { flex: 1; padding: 20px; overflow-y: auto; background: #f0f2f5; }
 
-        /* 拖曳條 */
-        .resizer {
-            width: 12px;
-            margin-left: -6px;
-            cursor: col-resize;
-            z-index: 100;
-            position: relative;
-            display: flex;
-            justify-content: center;
-            flex-shrink: 0;
-        }
-        
-        .resizer::after {
-            content: "";
-            display: block;
-            width: 1px;
-            height: 100%;
-            background: #e0e0e0;
-            transition: all 0.2s;
-        }
-
-        .resizer:hover::after, .resizer.active::after {
-            background: #1976d2;
-            width: 2px;
-            box-shadow: 0 0 4px rgba(25, 118, 210, 0.5);
-        }
-
-        /* 右側窗格 */
-        .pane-right {
-            flex: 1;
-            padding: 20px;
-            overflow-y: auto; 
-            background: #f0f2f5;
-        }
-
-        .is-resizing {
-            cursor: col-resize !important;
-            user-select: none; 
-        }
+        .is-resizing { cursor: col-resize !important; user-select: none; }
         .is-resizing iframe { pointer-events: none; }
 
         h1 { text-align: center; color: #444; margin-bottom: 20px; font-weight: 800; }
@@ -87,8 +46,9 @@
         .btn { border: none; padding: 8px 16px; border-radius: 5px; cursor: pointer; font-size: 0.95rem; margin: 5px; transition: 0.2s; display: inline-flex; align-items: center; justify-content: center; gap: 5px; }
         .btn:hover { opacity: 0.9; transform: translateY(-1px); }
         .btn-primary { background: #1976d2; color: white; }
-        .btn-danger { background: #ef5350; color: white; }
-        .btn-success { background: #66bb6a; color: white; }
+        .btn-danger { background: #d32f2f; color: white; }
+        .btn-success { background: #4caf50; color: white; }
+        .btn-warning { background: #ff9800; color: white; }
         .btn-outline { background: white; border: 1px solid #ccc; color: #555; }
         .btn-dark { background: #37474f; color: white; }
         .btn-toggle-on { background: #00897b; color: white; }
@@ -109,21 +69,7 @@
 
         /* 左側按讚區 */
         .vote-section { display: flex; flex-direction: column; align-items: center; min-width: 50px; justify-content: center; }
-        .vote-btn { 
-            background: none; 
-            border: 1px solid #eee; 
-            border-radius: 8px; 
-            width: 50px; 
-            height: 55px; 
-            cursor: pointer; 
-            display: flex; 
-            flex-direction: column; 
-            align-items: center; 
-            justify-content: center; 
-            transition: 0.2s; 
-            color: #90a4ae;
-            position: relative; 
-        }
+        .vote-btn { background: none; border: 1px solid #eee; border-radius: 8px; width: 50px; height: 55px; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; transition: 0.2s; color: #90a4ae; position: relative; }
         .vote-btn:hover { background: #e3f2fd; border-color: #90caf9; color: #1976d2; }
         .vote-btn.active { background: #e3f2fd; border-color: #1976d2; color: #1976d2; }
         .vote-btn:disabled { opacity: 0.5; cursor: not-allowed; } 
@@ -140,69 +86,17 @@
         .action-link.delete { color: #d32f2f; }
 
         /* --- 講師 QR Code 區 --- */
-        .qr-display-panel { 
-            text-align: center; 
-            width: 100%;
-            box-sizing: border-box;
-            padding-top: 20px;
-        }
+        .qr-display-panel { text-align: center; width: 100%; box-sizing: border-box; padding-top: 20px; }
         .qr-img-large { width: 100%; height: auto; border-radius: 5px; border: 1px solid #eee; }
         .qr-placeholder { color: #999; padding: 50px 0; border: 2px dashed #ddd; border-radius: 10px; background: #fafafa; }
-        
-        .course-title-display {
-            margin-top: 20px;
-            font-size: 1.2rem;
-            font-weight: bold;
-            color: #333;
-            background: #fff8e1;
-            padding: 10px;
-            border-radius: 8px;
-            border: 1px dashed #ffd54f;
-            white-space: pre-wrap; 
-        }
+        .course-title-display { margin-top: 20px; font-size: 1.2rem; font-weight: bold; color: #333; background: #fff8e1; padding: 10px; border-radius: 8px; border: 1px dashed #ffd54f; white-space: pre-wrap; }
 
         /* --- 講師底部控制台 --- */
-        .bottom-control-bar {
-            position: fixed;
-            bottom: 0;
-            left: 0;
-            width: 100%;
-            background: #263238;
-            color: white;
-            box-shadow: 0 -4px 10px rgba(0,0,0,0.15);
-            z-index: 1000;
-            transition: transform 0.3s cubic-bezier(0.4, 0.0, 0.2, 1);
-        }
-        
-        .bottom-toggle-btn {
-            position: absolute;
-            top: -30px;
-            left: 50%;
-            transform: translateX(-50%);
-            background: #263238;
-            color: white;
-            width: 60px;
-            height: 30px;
-            border-radius: 10px 10px 0 0;
-            text-align: center;
-            line-height: 30px;
-            cursor: pointer;
-            font-size: 0.8rem;
-            box-shadow: 0 -2px 5px rgba(0,0,0,0.1);
-        }
-
-        .control-content {
-            padding: 15px 30px;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            flex-wrap: wrap;
-            gap: 20px;
-        }
-
+        .bottom-control-bar { position: fixed; bottom: 0; left: 0; width: 100%; background: #263238; color: white; box-shadow: 0 -4px 10px rgba(0,0,0,0.15); z-index: 1000; transition: transform 0.3s cubic-bezier(0.4, 0.0, 0.2, 1); }
+        .bottom-toggle-btn { position: absolute; top: -30px; left: 50%; transform: translateX(-50%); background: #263238; color: white; width: 60px; height: 30px; border-radius: 10px 10px 0 0; text-align: center; line-height: 30px; cursor: pointer; font-size: 0.8rem; box-shadow: 0 -2px 5px rgba(0,0,0,0.1); }
+        .control-content { padding: 15px 30px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 20px; }
         .bottom-control-bar.hidden { transform: translateY(100%); }
         .bottom-control-bar.hidden .bottom-toggle-btn { top: -30px; }
-
         .control-group { display: flex; align-items: center; gap: 10px; }
         .control-label { color: #cfd8dc; font-size: 0.9rem; margin-right: 5px; }
         .upload-wrapper { display: flex; flex-direction: column; }
@@ -225,9 +119,38 @@
     <div id="app">
         <div v-if="isLoading" class="loading-mask"><div>資料載入中...</div></div>
 
-        <div v-if="!isTeacher" class="container">
+        <!-- ================= 管理後台模式 ================= -->
+        <div v-if="viewMode === 'admin'" class="admin-container">
+            <div class="admin-header">
+                <span style="font-size: 2.2rem;">💬</span> 提問互動牆管理後台
+            </div>
+            <div class="admin-create-box">
+                <input type="text" v-model="newRoomName" placeholder="輸入新課程或組別的名稱..." @keydown.enter="createRoom">
+                <button class="btn btn-success" @click="createRoom" style="font-size: 1.1rem; padding: 12px 24px;">＋ 建立新組別</button>
+            </div>
+            
+            <div class="admin-room-grid">
+                <div v-for="room in rooms" :key="room.id" class="room-card">
+                    <div class="room-title">{{ room.name }}</div>
+                    <div class="room-date">建立於: {{ formatDate(room.createdAt) }}</div>
+                    <div class="room-actions">
+                        <button class="btn btn-primary btn-block" @click="openTeacherView(room.id)">👨‍🏫 開啟講師端</button>
+                        <button class="btn btn-warning btn-block" @click="copyStudentLink(room.id)">🔗 複製學員連結</button>
+                        <button class="btn btn-danger btn-block" @click="deleteRoom(room.id)">🗑️ 刪除組別</button>
+                    </div>
+                </div>
+                <div v-if="rooms.length === 0" style="grid-column: 1 / -1; text-align: center; color: #999; padding: 40px; background: white; border-radius: 10px; border: 1px dashed #ccc;">
+                    目前尚無任何組別，請於上方輸入名稱建立。
+                </div>
+            </div>
+        </div>
+
+        <!-- ================= 學員端模式 ================= -->
+        <div v-if="viewMode === 'student'" class="container">
             <h1>學員提問互動區</h1>
-            <div class="subtitle">即時同步 • 匿名提問 • 互動按讚</div>
+            <div class="subtitle" v-if="courseTitle" style="font-weight:bold; color:#1976d2;">{{ courseTitle }}</div>
+            <div class="subtitle" v-else>即時同步 • 匿名提問 • 互動按讚</div>
+            
             <div class="input-card">
                 <div class="input-row">
                     <input type="text" class="main-input" v-model="newQuestionText" placeholder="輸入您的問題或想法..." @keydown.enter="submitQuestion">
@@ -265,7 +188,8 @@
             </div>
         </div>
 
-        <div v-if="isTeacher" class="teacher-layout">
+        <!-- ================= 講師端模式 ================= -->
+        <div v-if="viewMode === 'teacher'" class="teacher-layout">
             <div class="pane-left" :style="{ width: leftWidth + 'px' }">
                 <div class="qr-display-panel">
                     <h3 style="margin-top:0; color:#444;">掃描加入提問</h3>
@@ -302,14 +226,15 @@
             </div>
         </div>
 
-        <div v-if="isTeacher" class="bottom-control-bar" :class="{ 'hidden': !showControls }">
+        <!-- 講師底部控制台 -->
+        <div v-if="viewMode === 'teacher'" class="bottom-control-bar" :class="{ 'hidden': !showControls }">
             <div class="bottom-toggle-btn" @click="showControls = !showControls">{{ showControls ? '▼ 隱藏' : '▲ 設定' }}</div>
             <div class="control-content">
                 <div class="control-group"><span class="control-label">自訂標題：</span><input type="text" v-model="courseTitle" placeholder="例如：12/25 專案管理實務" class="full-width-input" @change="saveSettings"></div>
                 <div class="control-group"><span class="control-label">排序：</span><button class="btn" :class="sortBy === 'likes' ? 'btn-primary' : 'btn-dark'" @click="sortBy = 'likes'">👍 熱門</button><button class="btn" :class="sortBy === 'time' ? 'btn-primary' : 'btn-dark'" @click="sortBy = 'time'">🕒 時間</button></div>
                 <div class="control-group"><span class="control-label">時間：</span><button class="btn" :class="showTimeSetting ? 'btn-toggle-on' : 'btn-toggle-off'" @click="toggleTimeSetting">{{ showTimeSetting ? '👁️' : '🙈' }}</button></div>
                 <div class="control-group upload-wrapper"><span class="control-label">更換QR：</span><input type="file" accept="image/*" @change="handleQrUpload" style="color: white; font-size: 0.8rem; width: 180px;"></div>
-                <div class="control-group"><button class="btn btn-danger" @click="clearAllData">🗑️ 清空</button></div>
+                <div class="control-group"><button class="btn btn-danger" @click="clearAllData">🗑️ 清空提問</button></div>
             </div>
         </div>
     </div>
@@ -323,7 +248,12 @@
         createApp({
             data() {
                 return {
-                    isLoading: true, isTeacher: false, showControls: true, 
+                    viewMode: '', // 'admin', 'teacher', 'student'
+                    roomId: '',
+                    rooms: [],
+                    newRoomName: '',
+
+                    isLoading: true, showControls: true, 
                     questions: [], newQuestionText: '', editingId: null, editingText: '',
                     myAuthorId: '', myLikedIds: [], processingLikes: {}, 
                     sortBy: 'likes', qrCodeUrl: '', showTimeSetting: true, courseTitle: '',
@@ -340,26 +270,93 @@
                 }
             },
             mounted() {
-                let storedId = localStorage.getItem('qa_author_id');
-                if (!storedId) { storedId = 'user_' + Date.now() + '_' + Math.floor(Math.random() * 1000); localStorage.setItem('qa_author_id', storedId); }
-                this.myAuthorId = storedId;
-                const storedLikes = localStorage.getItem('qa_liked_ids');
-                if (storedLikes) { this.myLikedIds = JSON.parse(storedLikes); }
                 const urlParams = new URLSearchParams(window.location.search);
-                if (urlParams.get('role') === 'teacher') { this.isTeacher = true; } else { this.sortBy = 'time'; }
+                const room = urlParams.get('room');
+                const role = urlParams.get('role');
 
-                db.ref('qa_system/questions').on('value', snapshot => {
-                    const val = snapshot.val(); this.isLoading = false;
-                    if (val) { this.questions = Object.keys(val).map(key => ({ id: key, ...val[key] })); } else { this.questions = []; }
-                });
-                db.ref('qa_system/settings').on('value', snapshot => {
-                    const settings = snapshot.val() || {};
-                    if (settings.qrCode) this.qrCodeUrl = settings.qrCode;
-                    if (settings.showTime !== undefined) this.showTimeSetting = settings.showTime; else this.showTimeSetting = true;
-                    if (settings.courseTitle) this.courseTitle = settings.courseTitle;
-                });
+                if (!room) {
+                    // 如果沒有提供房間參數，則進入後台模式
+                    this.viewMode = 'admin';
+                    db.ref('qa_system_rooms').on('value', snapshot => {
+                        const val = snapshot.val();
+                        if (val) {
+                            this.rooms = Object.keys(val).map(key => ({ id: key, ...val[key] })).sort((a, b) => b.createdAt - a.createdAt);
+                        } else {
+                            this.rooms = [];
+                        }
+                        this.isLoading = false;
+                    });
+                } else {
+                    // 有房間參數，進入具體課程
+                    this.roomId = room;
+                    if (role === 'teacher') {
+                        this.viewMode = 'teacher';
+                    } else {
+                        this.viewMode = 'student';
+                        this.sortBy = 'time';
+                    }
+
+                    let storedId = localStorage.getItem('qa_author_id');
+                    if (!storedId) { storedId = 'user_' + Date.now() + '_' + Math.floor(Math.random() * 1000); localStorage.setItem('qa_author_id', storedId); }
+                    this.myAuthorId = storedId;
+                    const storedLikes = localStorage.getItem('qa_liked_ids');
+                    if (storedLikes) { this.myLikedIds = JSON.parse(storedLikes); }
+
+                    // 讀取該組別專屬的資料路徑
+                    db.ref(`qa_rooms_data/${this.roomId}/questions`).on('value', snapshot => {
+                        const val = snapshot.val(); this.isLoading = false;
+                        if (val) { this.questions = Object.keys(val).map(key => ({ id: key, ...val[key] })); } else { this.questions = []; }
+                    });
+                    db.ref(`qa_rooms_data/${this.roomId}/settings`).on('value', snapshot => {
+                        const settings = snapshot.val() || {};
+                        if (settings.qrCode) this.qrCodeUrl = settings.qrCode; else this.qrCodeUrl = '';
+                        if (settings.showTime !== undefined) this.showTimeSetting = settings.showTime; else this.showTimeSetting = true;
+                        if (settings.courseTitle) this.courseTitle = settings.courseTitle; else this.courseTitle = '';
+                    });
+                }
             },
             methods: {
+                /* --- 後台管理功能 --- */
+                createRoom() {
+                    const name = this.newRoomName.trim();
+                    if (!name) { alert('請輸入組別名稱'); return; }
+                    db.ref('qa_system_rooms').push({
+                        name: name,
+                        createdAt: firebase.database.ServerValue.TIMESTAMP
+                    }).then(() => {
+                        this.newRoomName = '';
+                    });
+                },
+                deleteRoom(id) {
+                    if (confirm('確定要刪除這個組別嗎？相關的所有提問資料也會被清空且無法復原！')) {
+                        db.ref(`qa_system_rooms/${id}`).remove();
+                        db.ref(`qa_rooms_data/${id}`).remove(); 
+                    }
+                },
+                openTeacherView(id) {
+                    const url = window.location.origin + window.location.pathname + `?room=${id}&role=teacher`;
+                    window.open(url, '_blank');
+                },
+                copyStudentLink(id) {
+                    const url = window.location.origin + window.location.pathname + `?room=${id}`;
+                    navigator.clipboard.writeText(url).then(() => {
+                        alert('✅ 已成功複製學員連結！');
+                    }).catch(err => {
+                        console.error('複製失敗', err);
+                        alert('複製失敗，請手動複製連結');
+                    });
+                },
+                formatDate(ts) {
+                    if (!ts) return '';
+                    const d = new Date(ts);
+                    return d.getFullYear() + '/' + (d.getMonth() + 1) + '/' + d.getDate() + ' ' + 
+                           (d.getHours() < 12 ? '上午' : '下午') + 
+                           (d.getHours() % 12 || 12) + ':' + 
+                           d.getMinutes().toString().padStart(2, '0') + ':' + 
+                           d.getSeconds().toString().padStart(2, '0');
+                },
+
+                /* --- 原有互動牆功能 (調整為動態路徑) --- */
                 startDrag(e) {
                     this.isDragging = true; document.body.style.userSelect = 'none'; document.body.style.cursor = 'col-resize';
                     window.addEventListener('mousemove', this.doDrag); window.addEventListener('mouseup', this.stopDrag);
@@ -367,7 +364,6 @@
                 doDrag(e) {
                     if (this.isDragging) {
                         const newWidth = e.clientX;
-                        // 修改重點：這裡的最小值限制設為 50
                         if (newWidth > 50 && newWidth < window.innerWidth - 100) { this.leftWidth = newWidth; }
                     }
                 },
@@ -375,35 +371,35 @@
                     this.isDragging = false; document.body.style.userSelect = ''; document.body.style.cursor = '';
                     window.removeEventListener('mousemove', this.doDrag); window.removeEventListener('mouseup', this.stopDrag);
                 },
-                saveSettings() { db.ref('qa_system/settings').update({ courseTitle: this.courseTitle }); },
+                saveSettings() { db.ref(`qa_rooms_data/${this.roomId}/settings`).update({ courseTitle: this.courseTitle }); },
                 submitQuestion() {
                     const text = this.newQuestionText.trim(); if (!text) return;
-                    db.ref('qa_system/questions').push({ text: text, timestamp: firebase.database.ServerValue.TIMESTAMP, likes: 0, authorId: this.myAuthorId }).then(() => { this.newQuestionText = ''; });
+                    db.ref(`qa_rooms_data/${this.roomId}/questions`).push({ text: text, timestamp: firebase.database.ServerValue.TIMESTAMP, likes: 0, authorId: this.myAuthorId }).then(() => { this.newQuestionText = ''; });
                 },
-                canEdit(q) { return this.isTeacher || q.authorId === this.myAuthorId; },
-                canDelete(q) { return this.isTeacher || q.authorId === this.myAuthorId; },
+                canEdit(q) { return this.viewMode === 'teacher' || q.authorId === this.myAuthorId; },
+                canDelete(q) { return this.viewMode === 'teacher' || q.authorId === this.myAuthorId; },
                 isMyQuestion(q) { return q.authorId === this.myAuthorId; },
                 startEdit(q) { this.editingId = q.id; this.editingText = q.text; this.$nextTick(() => { if(this.$refs.editInput && this.$refs.editInput[0]) this.$refs.editInput[0].focus(); }); },
                 cancelEdit() { this.editingId = null; this.editingText = ''; },
-                saveEdit(id) { if (!this.editingText.trim()) return; db.ref('qa_system/questions/' + id).update({ text: this.editingText }).then(() => { this.editingId = null; }); },
-                deleteQuestion(id) { if (confirm('確定要刪除這個問題嗎？')) { db.ref('qa_system/questions/' + id).remove(); } },
+                saveEdit(id) { if (!this.editingText.trim()) return; db.ref(`qa_rooms_data/${this.roomId}/questions/${id}`).update({ text: this.editingText }).then(() => { this.editingId = null; }); },
+                deleteQuestion(id) { if (confirm('確定要刪除這個問題嗎？')) { db.ref(`qa_rooms_data/${this.roomId}/questions/${id}`).remove(); } },
                 hasLiked(id) { return this.myLikedIds.includes(id); },
                 toggleLike(q) {
                     const id = q.id; if (this.processingLikes[id]) return; this.processingLikes[id] = true;
                     const isLiked = this.hasLiked(id);
-                    db.ref('qa_system/questions/' + id + '/likes').transaction((currentLikes) => {
+                    db.ref(`qa_rooms_data/${this.roomId}/questions/${id}/likes`).transaction((currentLikes) => {
                         const val = currentLikes || 0; return isLiked ? (val > 0 ? val - 1 : 0) : val + 1;
                     }).then(() => {
                         if (isLiked) { this.myLikedIds = this.myLikedIds.filter(lid => lid !== id); } else { this.myLikedIds.push(id); }
                         localStorage.setItem('qa_liked_ids', JSON.stringify(this.myLikedIds)); this.processingLikes[id] = false;
                     }).catch(() => { this.processingLikes[id] = false; });
                 },
-                toggleTimeSetting() { db.ref('qa_system/settings/showTime').set(!this.showTimeSetting); },
-                clearAllData() { if (confirm('警告：這將會清空所有學員的提問！確定執行嗎？')) { db.ref('qa_system/questions').remove(); } },
+                toggleTimeSetting() { db.ref(`qa_rooms_data/${this.roomId}/settings/showTime`).set(!this.showTimeSetting); },
+                clearAllData() { if (confirm('警告：這將會清空本組別所有學員的提問！確定執行嗎？')) { db.ref(`qa_rooms_data/${this.roomId}/questions`).remove(); } },
                 handleQrUpload(event) {
                     const file = event.target.files[0]; if (!file) return;
                     if (file.size > 500 * 1024) { alert('圖片太大，請使用小於 500KB 的圖片'); return; }
-                    const reader = new FileReader(); reader.onload = (e) => { db.ref('qa_system/settings/qrCode').set(e.target.result); }; reader.readAsDataURL(file);
+                    const reader = new FileReader(); reader.onload = (e) => { db.ref(`qa_rooms_data/${this.roomId}/settings/qrCode`).set(e.target.result); }; reader.readAsDataURL(file);
                 },
                 formatTime(ts) { if (!ts) return ''; const date = new Date(ts); return `${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`; }
             }
