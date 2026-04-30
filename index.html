@@ -124,6 +124,16 @@
             <div class="admin-header">
                 <span style="font-size: 2.2rem;">💬</span> 提問互動牆管理後台
             </div>
+
+            <!-- 舊版資料清理提示區塊 (僅在有舊資料時顯示) -->
+            <div v-if="hasLegacyData" style="background: #ffebee; padding: 15px 25px; border-radius: 10px; margin-bottom: 25px; border: 1px solid #ffcdd2; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px;">
+                <div style="color: #c62828;">
+                    <strong style="font-size: 1.1rem;">⚠️ 偵測到舊版未分組的提問資料</strong><br>
+                    <span style="font-size: 0.95rem;">(包含圖中的 05/06 ATI 等資料) 為了釋放您的 Firebase 空間，建議您將其永久刪除。</span>
+                </div>
+                <button class="btn btn-danger" @click="deleteLegacyData">🗑️ 一鍵刪除舊版資料釋放空間</button>
+            </div>
+
             <div class="admin-create-box">
                 <input type="text" v-model="newRoomName" placeholder="輸入新課程或組別的名稱..." @keydown.enter="createRoom">
                 <button class="btn btn-success" @click="createRoom" style="font-size: 1.1rem; padding: 12px 24px;">＋ 建立新組別</button>
@@ -252,6 +262,7 @@
                     roomId: '',
                     rooms: [],
                     newRoomName: '',
+                    hasLegacyData: false, // 偵測舊版資料的開關
 
                     isLoading: true, showControls: true, 
                     questions: [], newQuestionText: '', editingId: null, editingText: '',
@@ -275,8 +286,10 @@
                 const role = urlParams.get('role');
 
                 if (!room) {
-                    // 如果沒有提供房間參數，則進入後台模式
+                    // ====== 進入管理後台模式 ======
                     this.viewMode = 'admin';
+                    
+                    // 1. 載入新版的房間列表
                     db.ref('qa_system_rooms').on('value', snapshot => {
                         const val = snapshot.val();
                         if (val) {
@@ -286,8 +299,16 @@
                         }
                         this.isLoading = false;
                     });
+
+                    // 2. 偵測是否有舊版 `qa_system` 的資料
+                    db.ref('qa_system').once('value', snapshot => {
+                        if (snapshot.exists()) {
+                            this.hasLegacyData = true; // 發現舊資料，開啟提示與刪除按鈕
+                        }
+                    });
+
                 } else {
-                    // 有房間參數，進入具體課程
+                    // ====== 進入個別組別模式 ======
                     this.roomId = room;
                     if (role === 'teacher') {
                         this.viewMode = 'teacher';
@@ -331,6 +352,17 @@
                     if (confirm('確定要刪除這個組別嗎？相關的所有提問資料也會被清空且無法復原！')) {
                         db.ref(`qa_system_rooms/${id}`).remove();
                         db.ref(`qa_rooms_data/${id}`).remove(); 
+                    }
+                },
+                deleteLegacyData() {
+                    // 一鍵刪除舊版資料的專屬方法
+                    if (confirm('確定要永久刪除舊版的提問資料嗎？（刪除後無法復原，並將釋放您的 Firebase 空間）')) {
+                        db.ref('qa_system').remove().then(() => {
+                            alert('舊版資料已成功清除！');
+                            this.hasLegacyData = false; // 關閉提示
+                        }).catch(err => {
+                            alert('刪除失敗: ' + err.message);
+                        });
                     }
                 },
                 openTeacherView(id) {
