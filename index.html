@@ -11,6 +11,14 @@
     <style>
         body { font-family: "微軟正黑體", sans-serif; background-color: #f0f2f5; margin: 0; padding: 0; color: #333; height: 100vh; overflow: hidden; }
         
+        /* === 登入畫面專用佈局 === */
+        .login-container { display: flex; justify-content: center; align-items: center; height: 100vh; background: #f0f2f5; }
+        .login-box { background: white; padding: 40px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); text-align: center; width: 100%; max-width: 350px; }
+        .login-box h2 { margin-top: 0; color: #333; margin-bottom: 25px; }
+        .login-box input { padding: 12px 15px; font-size: 1.1rem; border: 1px solid #ddd; border-radius: 6px; margin-bottom: 20px; width: 100%; box-sizing: border-box; outline: none; transition: 0.3s; }
+        .login-box input:focus { border-color: #1976d2; }
+        .login-box button { width: 100%; font-size: 1.1rem; padding: 12px; }
+
         /* === 管理後台專用佈局 === */
         .admin-container { max-width: 1000px; margin: 0 auto; padding: 40px 20px; overflow-y: auto; height: 100%; box-sizing: border-box; }
         .admin-header { text-align: center; margin-bottom: 30px; color: #333; font-size: 1.8rem; font-weight: bold; display: flex; justify-content: center; align-items: center; gap: 10px; }
@@ -119,13 +127,19 @@
     <div id="app">
         <div v-if="isLoading" class="loading-mask"><div>資料載入中...</div></div>
 
-        <!-- ================= 管理後台模式 ================= -->
-        <div v-if="viewMode === 'admin'" class="admin-container">
+        <div v-if="viewMode === 'admin' && !isAuthenticated" class="login-container">
+            <div class="login-box">
+                <h2>🔒 管理後台登入</h2>
+                <input type="password" v-model="adminPasswordInput" placeholder="請輸入管理員密碼" @keydown.enter="loginAdmin">
+                <button class="btn btn-primary" @click="loginAdmin">登入</button>
+            </div>
+        </div>
+
+        <div v-if="viewMode === 'admin' && isAuthenticated" class="admin-container">
             <div class="admin-header">
                 <span style="font-size: 2.2rem;">💬</span> 提問互動牆管理後台
             </div>
 
-            <!-- 舊版資料清理提示區塊 (僅在有舊資料時顯示) -->
             <div v-if="hasLegacyData" style="background: #ffebee; padding: 15px 25px; border-radius: 10px; margin-bottom: 25px; border: 1px solid #ffcdd2; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px;">
                 <div style="color: #c62828;">
                     <strong style="font-size: 1.1rem;">⚠️ 偵測到舊版未分組的提問資料</strong><br>
@@ -146,6 +160,8 @@
                     <div class="room-actions">
                         <button class="btn btn-primary btn-block" @click="openTeacherView(room.id)">👨‍🏫 開啟講師端</button>
                         <button class="btn btn-warning btn-block" @click="copyStudentLink(room.id)">🔗 複製學員連結</button>
+                        <button class="btn btn-success btn-block" @click="editRoomName(room)">✏️ 修改名稱</button>
+                        <button class="btn btn-dark btn-block" @click="duplicateRoom(room)">📑 複製主題與設定</button>
                         <button class="btn btn-danger btn-block" @click="deleteRoom(room.id)">🗑️ 刪除組別</button>
                     </div>
                 </div>
@@ -155,7 +171,6 @@
             </div>
         </div>
 
-        <!-- ================= 學員端模式 ================= -->
         <div v-if="viewMode === 'student'" class="container">
             <h1>學員提問互動區</h1>
             <div class="subtitle" v-if="courseTitle" style="font-weight:bold; color:#1976d2;">{{ courseTitle }}</div>
@@ -198,7 +213,6 @@
             </div>
         </div>
 
-        <!-- ================= 講師端模式 ================= -->
         <div v-if="viewMode === 'teacher'" class="teacher-layout">
             <div class="pane-left" :style="{ width: leftWidth + 'px' }">
                 <div class="qr-display-panel">
@@ -236,7 +250,6 @@
             </div>
         </div>
 
-        <!-- 講師底部控制台 -->
         <div v-if="viewMode === 'teacher'" class="bottom-control-bar" :class="{ 'hidden': !showControls }">
             <div class="bottom-toggle-btn" @click="showControls = !showControls">{{ showControls ? '▼ 隱藏' : '▲ 設定' }}</div>
             <div class="control-content">
@@ -259,10 +272,12 @@
             data() {
                 return {
                     viewMode: '', // 'admin', 'teacher', 'student'
+                    isAuthenticated: false, // 登入狀態
+                    adminPasswordInput: '', // 密碼輸入框
                     roomId: '',
                     rooms: [],
                     newRoomName: '',
-                    hasLegacyData: false, // 偵測舊版資料的開關
+                    hasLegacyData: false, 
 
                     isLoading: true, showControls: true, 
                     questions: [], newQuestionText: '', editingId: null, editingText: '',
@@ -289,6 +304,11 @@
                     // ====== 進入管理後台模式 ======
                     this.viewMode = 'admin';
                     
+                    // 檢查 Session 中是否已經登入過
+                    if (sessionStorage.getItem('admin_authenticated') === 'true') {
+                        this.isAuthenticated = true;
+                    }
+                    
                     // 1. 載入新版的房間列表
                     db.ref('qa_system_rooms').on('value', snapshot => {
                         const val = snapshot.val();
@@ -303,7 +323,7 @@
                     // 2. 偵測是否有舊版 `qa_system` 的資料
                     db.ref('qa_system').once('value', snapshot => {
                         if (snapshot.exists()) {
-                            this.hasLegacyData = true; // 發現舊資料，開啟提示與刪除按鈕
+                            this.hasLegacyData = true; 
                         }
                     });
 
@@ -338,6 +358,16 @@
             },
             methods: {
                 /* --- 後台管理功能 --- */
+                loginAdmin() {
+                    if (this.adminPasswordInput === '20150117') {
+                        this.isAuthenticated = true;
+                        sessionStorage.setItem('admin_authenticated', 'true');
+                        this.adminPasswordInput = ''; // 清空密碼
+                    } else {
+                        alert('密碼錯誤，請重新輸入！');
+                        this.adminPasswordInput = '';
+                    }
+                },
                 createRoom() {
                     const name = this.newRoomName.trim();
                     if (!name) { alert('請輸入組別名稱'); return; }
@@ -348,6 +378,39 @@
                         this.newRoomName = '';
                     });
                 },
+                editRoomName(room) {
+                    const newName = prompt('✏️ 請輸入新的主題名稱：', room.name);
+                    if (newName !== null && newName.trim() !== '') {
+                        db.ref(`qa_system_rooms/${room.id}`).update({ name: newName.trim() });
+                    }
+                },
+                async duplicateRoom(room) {
+                    const newName = prompt('📑 請輸入複製的主題名稱：', room.name + ' (複製)');
+                    if (newName === null || newName.trim() === '') return;
+
+                    try {
+                        // 1. 建立新的房間節點
+                        const newRoomRef = await db.ref('qa_system_rooms').push({
+                            name: newName.trim(),
+                            createdAt: firebase.database.ServerValue.TIMESTAMP
+                        });
+                        const newRoomId = newRoomRef.key;
+
+                        // 2. 抓取舊房間的設定 (QR Code、標題、顯示時間等)
+                        const snapshot = await db.ref(`qa_rooms_data/${room.id}/settings`).once('value');
+                        const oldSettings = snapshot.val();
+
+                        // 3. 將設定寫入新房間 (提問資料 questions 不複製，保持乾淨)
+                        if (oldSettings) {
+                            await db.ref(`qa_rooms_data/${newRoomId}/settings`).set(oldSettings);
+                        }
+                        
+                        alert('✅ 複製成功！');
+                    } catch (err) {
+                        console.error(err);
+                        alert('❌ 複製失敗：' + err.message);
+                    }
+                },
                 deleteRoom(id) {
                     if (confirm('確定要刪除這個組別嗎？相關的所有提問資料也會被清空且無法復原！')) {
                         db.ref(`qa_system_rooms/${id}`).remove();
@@ -355,11 +418,10 @@
                     }
                 },
                 deleteLegacyData() {
-                    // 一鍵刪除舊版資料的專屬方法
                     if (confirm('確定要永久刪除舊版的提問資料嗎？（刪除後無法復原，並將釋放您的 Firebase 空間）')) {
                         db.ref('qa_system').remove().then(() => {
                             alert('舊版資料已成功清除！');
-                            this.hasLegacyData = false; // 關閉提示
+                            this.hasLegacyData = false; 
                         }).catch(err => {
                             alert('刪除失敗: ' + err.message);
                         });
@@ -388,7 +450,7 @@
                            d.getSeconds().toString().padStart(2, '0');
                 },
 
-                /* --- 原有互動牆功能 (調整為動態路徑) --- */
+                /* --- 原有互動牆功能 --- */
                 startDrag(e) {
                     this.isDragging = true; document.body.style.userSelect = 'none'; document.body.style.cursor = 'col-resize';
                     window.addEventListener('mousemove', this.doDrag); window.addEventListener('mouseup', this.stopDrag);
