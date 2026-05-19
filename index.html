@@ -11,26 +11,27 @@
     <style>
         body { font-family: "微軟正黑體", sans-serif; background-color: #f0f2f5; margin: 0; padding: 0; color: #333; height: 100vh; overflow: hidden; }
         
-        /* === 登入畫面專用佈局 === */
-        .login-container { display: flex; justify-content: center; align-items: center; height: 100vh; background: #f0f2f5; }
-        .login-box { background: white; padding: 40px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); text-align: center; width: 100%; max-width: 350px; }
-        .login-box h2 { margin-top: 0; color: #333; margin-bottom: 25px; }
-        .login-box input { padding: 12px 15px; font-size: 1.1rem; border: 1px solid #ddd; border-radius: 6px; margin-bottom: 20px; width: 100%; box-sizing: border-box; outline: none; transition: 0.3s; }
-        .login-box input:focus { border-color: #1976d2; }
-        .login-box button { width: 100%; font-size: 1.1rem; padding: 12px; }
+        /* === 登入畫面專用佈局 (已更新配色與佈局) === */
+        .login-container { display: flex; flex-direction: column; justify-content: center; align-items: center; height: 100vh; background: #f8fafc; }
+        .login-box { background: white; padding: 40px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); text-align: center; width: 100%; max-width: 400px; box-sizing: border-box; border-top: 6px solid #0ea5e9; }
+        .login-box h2 { color: #0f172a; margin-top: 0; margin-bottom: 25px; font-size: 1.8rem; }
+        .login-box input { width: 100%; padding: 14px; font-size: 1.1rem; border: 1px solid #e2e8f0; border-radius: 8px; margin-bottom: 20px; box-sizing: border-box; outline: none; transition: 0.3s; }
+        .login-box input:focus { border-color: #0ea5e9; box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.1); }
+        .login-box .btn-primary { background-color: #0ea5e9; border-color: #0ea5e9; width: 100%; padding: 14px; font-size: 1.1rem; }
 
-        /* === 管理後台專用佈局 === */
-        .admin-container { max-width: 1000px; margin: 0 auto; padding: 40px 20px; overflow-y: auto; height: 100%; box-sizing: border-box; }
-        .admin-header { text-align: center; margin-bottom: 30px; color: #333; font-size: 1.8rem; font-weight: bold; display: flex; justify-content: center; align-items: center; gap: 10px; }
-        .admin-create-box { background: white; padding: 25px; border-radius: 10px; display: flex; gap: 15px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); margin-bottom: 30px; align-items: center; flex-wrap: wrap; }
-        .admin-create-box input { flex: 1; padding: 12px 15px; border: 1px solid #ddd; border-radius: 6px; font-size: 1.1rem; min-width: 250px; outline: none; transition: 0.3s; }
-        .admin-create-box input:focus { border-color: #4caf50; }
-        .admin-room-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px; padding-bottom: 50px; }
-        .room-card { background: white; border-radius: 10px; padding: 25px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); border-top: 5px solid #1976d2; position: relative; transition: transform 0.2s; }
-        .room-card:hover { transform: translateY(-3px); box-shadow: 0 6px 15px rgba(0,0,0,0.1); }
-        .room-title { font-size: 1.3rem; font-weight: bold; color: #333; margin-bottom: 10px; }
-        .room-date { color: #888; font-size: 0.9rem; margin-bottom: 20px; }
-        .btn-block { display: block; width: 100%; margin: 8px 0; padding: 10px; font-size: 1rem; border-radius: 6px; font-weight: bold; }
+        /* === 管理後台專用佈局 (已更新配色與佈局) === */
+        .admin-container { max-width: 1100px; margin: 0 auto; padding: 40px 20px; overflow-y: auto; height: 100%; box-sizing: border-box; background-color: #f8fafc; }
+        .admin-header { text-align: center; margin-bottom: 30px; color: #1e293b; font-size: 2.2rem; font-weight: bold; display: flex; justify-content: center; align-items: center; gap: 12px; }
+        .admin-create-box { background: white; padding: 25px; border-radius: 12px; display: flex; gap: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.04); margin-bottom: 30px; align-items: center; flex-wrap: wrap; }
+        .admin-create-box input { flex: 1; padding: 14px 18px; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 1.1rem; min-width: 250px; outline: none; transition: 0.3s; }
+        .admin-create-box input:focus { border-color: #0ea5e9; box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.1); }
+        .admin-room-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 25px; padding-bottom: 50px; }
+        .room-card { background: white; border-radius: 12px; padding: 25px; box-shadow: 0 4px 15px rgba(0,0,0,0.04); border-top: 6px solid #0ea5e9; position: relative; transition: transform 0.2s, box-shadow 0.2s; }
+        .room-card:hover { transform: translateY(-3px); box-shadow: 0 8px 20px rgba(0,0,0,0.07); }
+        .room-title { font-size: 1.4rem; font-weight: bold; color: #0f172a; margin-bottom: 10px; line-height: 1.3; }
+        .room-date { color: #64748b; font-size: 0.95rem; margin-bottom: 20px; }
+        .btn-block { display: block; width: 100%; margin: 8px 0; padding: 10px; font-size: 1rem; border-radius: 8px; font-weight: bold; text-align: center; box-sizing: border-box; }
+        .admin-container .btn-primary { background-color: #0ea5e9; border-color: #0ea5e9; }
 
         /* 一般容器 (學員端用) */
         .container { max-width: 900px; margin: 0 auto; padding: 20px; padding-bottom: 100px; height: 100%; overflow-y: auto; box-sizing: border-box; }
@@ -130,17 +131,17 @@
         <div v-if="viewMode === 'admin' && !isAuthenticated" class="login-container">
             <div class="login-box">
                 <h2>🔒 管理後台登入</h2>
-                <input type="password" v-model="adminPasswordInput" placeholder="請輸入管理員密碼" @keydown.enter="loginAdmin">
+                <input type="password" v-model="adminPasswordInput" placeholder="請輸入管理密碼..." @keydown.enter="loginAdmin">
                 <button class="btn btn-primary" @click="loginAdmin">登入</button>
             </div>
         </div>
 
         <div v-if="viewMode === 'admin' && isAuthenticated" class="admin-container">
             <div class="admin-header">
-                <span style="font-size: 2.2rem;">💬</span> 提問互動牆管理後台
+                <span style="font-size: 2.8rem; color:#0ea5e9;">💬</span> 提問互動牆管理後台
             </div>
 
-            <div v-if="hasLegacyData" style="background: #ffebee; padding: 15px 25px; border-radius: 10px; margin-bottom: 25px; border: 1px solid #ffcdd2; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px;">
+            <div v-if="hasLegacyData" style="background: #ffebee; padding: 15px 25px; border-radius: 12px; margin-bottom: 25px; border: 1px solid #ffcdd2; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px;">
                 <div style="color: #c62828;">
                     <strong style="font-size: 1.1rem;">⚠️ 偵測到舊版未分組的提問資料</strong><br>
                     <span style="font-size: 0.95rem;">(包含圖中的 05/06 ATI 等資料) 為了釋放您的 Firebase 空間，建議您將其永久刪除。</span>
@@ -150,7 +151,7 @@
 
             <div class="admin-create-box">
                 <input type="text" v-model="newRoomName" placeholder="輸入新課程或組別的名稱..." @keydown.enter="createRoom">
-                <button class="btn btn-success" @click="createRoom" style="font-size: 1.1rem; padding: 12px 24px;">＋ 建立新組別</button>
+                <button class="btn btn-success" @click="createRoom" style="font-size: 1.1rem; padding: 14px 28px;">＋ 建立新組別</button>
             </div>
             
             <div class="admin-room-grid">
@@ -159,13 +160,17 @@
                     <div class="room-date">建立於: {{ formatDate(room.createdAt) }}</div>
                     <div class="room-actions">
                         <button class="btn btn-primary btn-block" @click="openTeacherView(room.id)">👨‍🏫 開啟講師端</button>
-                        <button class="btn btn-warning btn-block" @click="copyStudentLink(room.id)">🔗 複製學員連結</button>
-                        <button class="btn btn-success btn-block" @click="editRoomName(room)">✏️ 修改名稱</button>
-                        <button class="btn btn-dark btn-block" @click="duplicateRoom(room)">📑 複製主題與設定</button>
-                        <button class="btn btn-danger btn-block" @click="deleteRoom(room.id)">🗑️ 刪除組別</button>
+                        <button class="btn btn-warning btn-block" @click="copyStudentLink(room.id)" style="background-color:#f59e0b; color:white;">🔗 複製學員連結</button>
+                        
+                        <div style="display: flex; gap: 8px;">
+                            <button class="btn btn-outline btn-block" @click="editRoomName(room)" style="margin: 0; color: #0284c7; border-color: #bae6fd;">✏️ 修改名稱</button>
+                            <button class="btn btn-outline btn-block" @click="duplicateRoom(room)" style="margin: 0; color: #059669; border-color: #a7f3d0;">📑 複製主題</button>
+                        </div>
+
+                        <button class="btn btn-danger btn-block" @click="deleteRoom(room.id)" style="margin-top: 8px;">🗑️ 刪除組別</button>
                     </div>
                 </div>
-                <div v-if="rooms.length === 0" style="grid-column: 1 / -1; text-align: center; color: #999; padding: 40px; background: white; border-radius: 10px; border: 1px dashed #ccc;">
+                <div v-if="rooms.length === 0" style="grid-column: 1 / -1; text-align: center; color: #64748b; padding: 50px; background: white; border-radius: 12px; border: 2px dashed #e2e8f0;">
                     目前尚無任何組別，請於上方輸入名稱建立。
                 </div>
             </div>
