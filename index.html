@@ -3,10 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>即時提問互動牆</title>
+    <title>即時提問互動牆｜一專案多題目</title>
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 
     <style>
         body { font-family: "微軟正黑體", sans-serif; background-color: #f0f2f5; margin: 0; padding: 0; color: #333; height: 100vh; overflow: hidden; }
@@ -122,11 +123,45 @@
         }
 
         .loading-mask { position: fixed; top:0; left:0; width:100%; height:100%; background: rgba(240,242,245,0.9); display: flex; justify-content: center; align-items: center; z-index: 9999; font-size: 1.5rem; color: #666; }
+        /* v2：一個專案，多題目，同一個專案 QR Code；登入及後台原本視覺不更動 */
+        .topic-panel { background:white; padding:18px 20px; border-radius:12px; border:1px solid #dbeafe;
+            box-shadow:0 2px 12px rgba(15,23,42,.06); margin-bottom:20px; }
+        .topic-panel h2 { margin:0 0 10px; font-size:1.25rem; color:#0f172a; line-height:1.5; overflow-wrap:anywhere; white-space:pre-wrap; }
+        .topic-tag { font-size:.8rem; color:#0369a1; font-weight:bold; letter-spacing:.02em; }
+        .topic-count { color:#64748b; font-size:.85rem; }
+        .topic-editor { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin:9px 0; }
+        .topic-editor select { max-width:100%; min-width:200px; flex:1; padding:10px; border:1px solid #cbd5e1; border-radius:8px; background:white; font-size:1rem; }
+        .topic-editor input { flex:1; min-width:200px; padding:11px 12px; border:1px solid #cbd5e1; border-radius:8px; font-size:.98rem; }
+        .topic-editor .btn { margin:2px; }
+        .topic-hint { color:#64748b; font-size:.85rem; line-height:1.5; }
+        .student-topic { background:#e0f2fe; border:1px solid #bae6fd; border-radius:12px; padding:18px 20px; margin-bottom:16px; }
+        .student-topic h2 { font-size:1.3rem; margin:7px 0; color:#0c4a6e; line-height:1.5; white-space:pre-wrap; overflow-wrap:anywhere; }
+        .qr-auto-box { display:flex; justify-content:center; align-items:center; min-height:230px; padding:8px 0; }
+        .qr-auto-box img, .qr-auto-box canvas { max-width:100%; height:auto; display:block; background:#fff; }
+        .project-fixed-link { display:block; margin:9px auto; font-size:.72rem; color:#475569; word-break:break-all; user-select:all; }
+        .qr-note { color:#047857; font-size:.88rem; font-weight:600; margin:8px 0; }
+        .qr-old { margin-top:14px; font-size:.83rem; text-align:left; color:#64748b; }
+        .qr-old img { display:block; max-width:100%; max-height:250px; object-fit:contain; margin:10px auto; }
+        .recovery-panel { margin:16px 0 40px; padding:20px; border-radius:12px; border:1px solid #cbd5e1; background:#fff; }
+        .recovery-item { display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:14px;
+            padding:14px 0; border-bottom:1px solid #e2e8f0; }
+        .recovery-item:last-child { border-bottom:0; }
+        .recovery-summary { font-size:.9rem; color:#475569; overflow-wrap:anywhere; }
+        .status-error { position:relative; z-index:3000; background:#fef2f2; padding:12px; color:#991b1b;
+            font-weight:600; border-bottom:1px solid #fca5a5; }
+        .loading-topic { color:#64748b; text-align:center; padding:22px; }
+        @media (max-width: 850px) {
+            .pane-left { align-items:stretch; }
+            .topic-editor { align-items:stretch; }
+            .topic-editor select, .topic-editor input { width:100%; min-width:0; }
+            .teacher-layout { height:calc(100vh - 60px); overflow-y:auto; }
+        }
     </style>
 </head>
 <body :class="{ 'is-resizing': isDragging }">
     <div id="app">
         <div v-if="isLoading" class="loading-mask"><div>資料載入中...</div></div>
+        <div v-if="connectionError" class="status-error">{{ connectionError }}</div>
 
         <div v-if="viewMode === 'admin' && !isAuthenticated" class="login-container">
             <div class="login-box">
@@ -144,14 +179,14 @@
             <div v-if="hasLegacyData" style="background: #ffebee; padding: 15px 25px; border-radius: 12px; margin-bottom: 25px; border: 1px solid #ffcdd2; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px;">
                 <div style="color: #c62828;">
                     <strong style="font-size: 1.1rem;">⚠️ 偵測到舊版未分組的提問資料</strong><br>
-                    <span style="font-size: 0.95rem;">(包含圖中的 05/06 ATI 等資料) 為了釋放您的 Firebase 空間，建議您將其永久刪除。</span>
+                    <span style="font-size: 0.95rem;">這是獨立於各專案的舊資料。建議先保留；若需移除，系統會先建立可還原備份。</span>
                 </div>
-                <button class="btn btn-danger" @click="deleteLegacyData">🗑️ 一鍵刪除舊版資料釋放空間</button>
+                <button class="btn btn-danger" @click="deleteLegacyData">🗃️ 先備份再移除舊版資料</button>
             </div>
 
             <div class="admin-create-box">
-                <input type="text" v-model="newRoomName" placeholder="輸入新課程或組別的名稱..." @keydown.enter="createRoom">
-                <button class="btn btn-success" @click="createRoom" style="font-size: 1.1rem; padding: 14px 28px;">＋ 建立新組別</button>
+                <input type="text" v-model="newRoomName" placeholder="輸入新專案名稱（每個專案一組固定 QR Code）..." @keydown.enter="createRoom">
+                <button class="btn btn-success" @click="createRoom" style="font-size: 1.1rem; padding: 14px 28px;">＋ 建立新專案</button>
             </div>
             
             <div class="admin-room-grid">
@@ -164,14 +199,33 @@
                         
                         <div style="display: flex; gap: 8px;">
                             <button class="btn btn-outline btn-block" @click="editRoomName(room)" style="margin: 0; color: #0284c7; border-color: #bae6fd;">✏️ 修改名稱</button>
-                            <button class="btn btn-outline btn-block" @click="duplicateRoom(room)" style="margin: 0; color: #059669; border-color: #a7f3d0;">📑 複製主題</button>
+                            <button class="btn btn-outline btn-block" @click="duplicateRoom(room)" style="margin: 0; color: #059669; border-color: #a7f3d0;">📑 複製專案與題目</button>
                         </div>
 
-                        <button class="btn btn-danger btn-block" @click="deleteRoom(room.id)" style="margin-top: 8px;">🗑️ 刪除組別</button>
+                        <button class="btn btn-danger btn-block" @click="deleteRoom(room.id)" style="margin-top: 8px;">🗑️ 刪除專案（可還原）</button>
                     </div>
                 </div>
                 <div v-if="rooms.length === 0" style="grid-column: 1 / -1; text-align: center; color: #64748b; padding: 50px; background: white; border-radius: 12px; border: 2px dashed #e2e8f0;">
-                    目前尚無任何組別，請於上方輸入名稱建立。
+                    目前尚無任何專案，請於上方輸入名稱建立。
+                </div>
+            </div>
+            <div style="margin:0 0 20px;">
+                <button class="btn btn-outline" @click="toggleRecoveryPanel">🗃️ {{ showRecovery ? '關閉資料備份／還原中心' : '開啟資料備份／還原中心' }}</button>
+                <span style="font-size:.82rem; color:#64748b;">移除專案、題目或提問前會先備份；復原內容永久保留，除非您另外在 Firebase 管理。</span>
+            </div>
+            <div v-if="showRecovery" class="recovery-panel">
+                <h3 style="margin:0 0 8px;">資料備份／還原中心</h3>
+                <div class="topic-hint">顯示最近 100 筆備份；依穩定 Firebase 路徑還原，不使用列表位置判斷資料。</div>
+                <button class="btn btn-primary" @click="loadBackups" :disabled="recoveryLoading">🔄 更新備份清單</button>
+                <div v-if="recoveryLoading" class="loading-topic">讀取備份中...</div>
+                <div v-else-if="!recoveryRecords.length" class="loading-topic">目前沒有備份紀錄。</div>
+                <div v-for="record in recoveryRecords" :key="record.id" class="recovery-item">
+                    <div class="recovery-summary">
+                        <strong>{{ record.description || record.kind }}</strong>
+                        <div>{{ formatDate(record.createdAt) }}　｜　專案識別：{{ record.projectId || '未指定' }}</div>
+                        <div>備份編號：{{ record.id }}</div>
+                    </div>
+                    <button class="btn btn-success" @click="restoreBackup(record)" :disabled="restoring">↩️ 還原這筆備份</button>
                 </div>
             </div>
         </div>
@@ -180,18 +234,23 @@
             <h1>學員提問互動區</h1>
             <div class="subtitle" v-if="courseTitle" style="font-weight:bold; color:#1976d2;">{{ courseTitle }}</div>
             <div class="subtitle" v-else>即時同步 • 匿名提問 • 互動按讚</div>
-            
+            <div class="student-topic">
+                <span class="topic-tag">講師目前進行的題目 · 第 {{ Math.max(1, currentTopicIndex + 1) }} / {{ topics.length }} 題</span>
+                <h2>{{ currentTopic.title }}</h2>
+                <div class="topic-hint">講師切換題目時，這裡會自動更新；全程使用同一個學員連結或 QR Code。</div>
+            </div>
             <div class="input-card">
                 <div class="input-row">
-                    <input type="text" class="main-input" v-model="newQuestionText" placeholder="輸入您的問題或想法..." @keydown.enter="submitQuestion">
-                    <button class="btn btn-primary" @click="submitQuestion" :disabled="!newQuestionText.trim()">送出</button>
+                    <input type="text" class="main-input" v-model="newQuestionText" placeholder="針對目前題目，輸入您的問題或想法..." @input="rememberDraft(activeTopicId)" @keydown.enter="submitQuestion">
+                    <button class="btn btn-primary" @click="submitQuestion" :disabled="!newQuestionText.trim() || submitting || loadingTopic">送出</button>
                 </div>
             </div>
             <div class="q-list">
+                <div v-if="loadingTopic" class="loading-topic">切換題目中，正在載入本題提問...</div>
                 <transition-group name="list">
                     <div v-for="q in sortedQuestions" :key="q.id" class="q-card" :class="{ 'is-mine': isMyQuestion(q) }">
                         <div class="vote-section">
-                            <button class="vote-btn" :class="{ 'active': hasLiked(q.id) }" @click="toggleLike(q)" :disabled="processingLikes[q.id]">
+                            <button class="vote-btn" :class="{ 'active': hasLiked(q.id) }" @click="toggleLike(q)" :disabled="processingLikes[likeKey(q.id)]">
                                 <svg class="vote-icon-svg" viewBox="0 0 24 24"><path d="M1 21h4V9H1v12zm22-11c0-1.1-.9-2-2-2h-6.31l.95-4.57.03-.32c0-.41-.17-.79-.44-1.06L14.17 1 7.59 7.59C7.22 7.95 7 8.45 7 9v10c0 1.1.9 2 2 2h9c.83 0 1.54-.5 1.84-1.22l3.02-7.05c.09-.23.14-.47.14-.73v-1.91l-.01-.01L23 10z"/></svg>
                                 <span class="vote-count">{{ q.likes || 0 }}</span>
                             </button>
@@ -214,22 +273,50 @@
                         </div>
                     </div>
                 </transition-group>
-                <div v-if="sortedQuestions.length === 0" style="text-align: center; color: #999; padding: 40px;">目前還沒有人提問，成為第一個發問的人吧！</div>
+                <div v-if="!loadingTopic && sortedQuestions.length === 0" style="text-align: center; color: #999; padding: 40px;">這個題目目前還沒有人提問，成為第一個發問的人吧！</div>
             </div>
         </div>
 
         <div v-if="viewMode === 'teacher'" class="teacher-layout">
             <div class="pane-left" :style="{ width: leftWidth + 'px' }">
                 <div class="qr-display-panel">
-                    <h3 style="margin-top:0; color:#444;">掃描加入提問</h3>
-                    <div v-if="qrCodeUrl"><img :src="qrCodeUrl" class="qr-img-large" alt="QR Code" draggable="false"></div>
-                    <div v-else class="qr-placeholder">尚無 QR Code<br><span style="font-size:0.8rem">請至下方功能區上傳</span></div>
-                    <div v-if="courseTitle" class="course-title-display">{{ courseTitle }}</div>
+                    <h3 style="margin-top:0; color:#444;">掃描加入此專案</h3>
+                    <div class="qr-note">✅ 本專案固定 QR Code，切換題目也不變</div>
+                    <div ref="fixedQr" class="qr-auto-box"></div>
+                    <div v-if="qrStatus" class="qr-placeholder" style="padding:15px;">{{ qrStatus }}</div>
+                    <button class="btn btn-primary" @click="copyStudentLink(roomId)">🔗 複製固定學員連結</button>
+                    <div class="project-fixed-link">{{ studentLink }}</div>
+                    <div class="course-title-display">{{ displayCourseTitle }}</div>
+                    <details v-if="qrCodeUrl" class="qr-old">
+                        <summary>查看舊版自訂 QR 圖片（不保證指向本專案）</summary>
+                        <img :src="qrCodeUrl" alt="原有自訂 QR 圖片">
+                    </details>
                 </div>
             </div>
             <div class="resizer" :class="{ 'active': isDragging }" @mousedown="startDrag"></div>
             <div class="pane-right">
+                <div class="topic-panel">
+                    <div class="topic-tag">目前向全班顯示 · 第 {{ Math.max(1, currentTopicIndex + 1) }} / {{ topics.length }} 題</div>
+                    <h2>{{ currentTopic.title }}</h2>
+                    <div class="topic-editor">
+                        <button class="btn btn-outline" @click="goRelativeTopic(-1)" :disabled="currentTopicIndex <= 0 || switchBusy">◀ 上一題</button>
+                        <select aria-label="切換題目" :value="activeTopicId" @change="switchTopic($event.target.value)" :disabled="switchBusy">
+                            <option v-for="(topic, idx) in topics" :key="topic.id" :value="topic.id">{{ idx + 1 }}. {{ topic.title }}</option>
+                        </select>
+                        <button class="btn btn-primary" @click="goRelativeTopic(1)" :disabled="currentTopicIndex >= topics.length - 1 || switchBusy">下一題 ▶</button>
+                    </div>
+                    <div class="topic-editor">
+                        <input v-model="newTopicTitle" type="text" maxlength="500" placeholder="輸入要問全班的下一道題目..." @keydown.enter="addTopic">
+                        <button class="btn btn-success" @click="addTopic" :disabled="addingTopic || !newTopicTitle.trim()">＋ 新增題目並切換</button>
+                    </div>
+                    <div class="topic-editor">
+                        <button class="btn btn-outline" @click="renameCurrentTopic">✏️ 修改本題內容</button>
+                        <button v-if="activeTopicId !== 'legacy'" class="btn btn-danger" @click="deleteCurrentTopic">🗑️ 移除本題（有備份）</button>
+                    </div>
+                    <div class="topic-hint">學員只要掃描一次固定 QR Code；講師切換後，所有開著學員連結的人都會同步進入本題。每題的提問和按讚各自保存，切回原題即可查看。</div>
+                </div>
                 <div class="q-list">
+                    <div v-if="loadingTopic" class="loading-topic">正在載入本題提問...</div>
                     <transition-group name="list">
                         <div v-for="q in sortedQuestions" :key="q.id" class="q-card" :class="{ 'is-editing': editingId === q.id }">
                             <div class="vote-section">
@@ -250,7 +337,7 @@
                             </div>
                         </div>
                     </transition-group>
-                    <div v-if="sortedQuestions.length === 0" style="text-align: center; color: #999; padding: 40px;">目前尚無提問</div>
+                    <div v-if="!loadingTopic && sortedQuestions.length === 0" style="text-align: center; color: #999; padding: 40px;">本題目前尚無提問</div>
                 </div>
             </div>
         </div>
@@ -261,8 +348,9 @@
                 <div class="control-group"><span class="control-label">自訂標題：</span><input type="text" v-model="courseTitle" placeholder="例如：12/25 專案管理實務" class="full-width-input" @change="saveSettings"></div>
                 <div class="control-group"><span class="control-label">排序：</span><button class="btn" :class="sortBy === 'likes' ? 'btn-primary' : 'btn-dark'" @click="sortBy = 'likes'">👍 熱門</button><button class="btn" :class="sortBy === 'time' ? 'btn-primary' : 'btn-dark'" @click="sortBy = 'time'">🕒 時間</button></div>
                 <div class="control-group"><span class="control-label">時間：</span><button class="btn" :class="showTimeSetting ? 'btn-toggle-on' : 'btn-toggle-off'" @click="toggleTimeSetting">{{ showTimeSetting ? '👁️' : '🙈' }}</button></div>
-                <div class="control-group upload-wrapper"><span class="control-label">更換QR：</span><input type="file" accept="image/*" @change="handleQrUpload" style="color: white; font-size: 0.8rem; width: 180px;"></div>
-                <div class="control-group"><button class="btn btn-danger" @click="clearAllData">🗑️ 清空提問</button></div>
+                <div class="control-group upload-wrapper"><span class="control-label">舊版附加 QR 圖：</span><input type="file" accept="image/*" @change="handleQrUpload" style="color: white; font-size: 0.8rem; width: 180px;"></div>
+                <div class="control-group"><button class="btn btn-danger" @click="clearAllData">🗑️ 清空本題提問（可還原）</button>
+                    <button class="btn btn-outline" @click="openAdminRecovery">🗃️ 開啟管理後台／還原中心</button></div>
             </div>
         </div>
     </div>
@@ -272,235 +360,553 @@
         const firebaseConfig = { apiKey: "AIzaSyDUPGhkiJgxeYDYHqEaXCYvKh2vdTGqypw", authDomain: "class-discussion-01.firebaseapp.com", databaseURL: "https://class-discussion-01-default-rtdb.firebaseio.com", projectId: "class-discussion-01", storageBucket: "class-discussion-01.firebasestorage.app", messagingSenderId: "724687365020", appId: "1:724687365020:web:380b5d85872dc2d9b85e59", measurementId: "G-XYN5JV48T7" };
         firebase.initializeApp(firebaseConfig);
         const db = firebase.database();
+        const LEGACY_TOPIC = 'legacy'; // 舊資料原封不動放在 /questions；永遠不直接遷移或覆寫。
+        const safeId = id => typeof id === 'string' && /^[a-zA-Z0-9_-]{1,160}$/.test(id);
+        const own = (obj, key) => Object.prototype.hasOwnProperty.call(obj, key);
+        function friendlyError(err) { return (err && err.message) ? err.message : String(err); }
+        function projectLink(roomId, isTeacher = false) {
+            const url = new URL(window.location.href);
+            url.search = '';
+            url.hash = '';
+            url.searchParams.set('room', roomId);
+            if (isTeacher) url.searchParams.set('role', 'teacher');
+            return url.toString();
+        }
 
         createApp({
             data() {
                 return {
-                    viewMode: '', // 'admin', 'teacher', 'student'
-                    isAuthenticated: false, // 登入狀態
-                    adminPasswordInput: '', // 密碼輸入框
-                    roomId: '',
-                    rooms: [],
-                    newRoomName: '',
-                    hasLegacyData: false, 
-
-                    isLoading: true, showControls: true, 
-                    questions: [], newQuestionText: '', editingId: null, editingText: '',
-                    myAuthorId: '', myLikedIds: [], processingLikes: {}, 
-                    sortBy: 'likes', qrCodeUrl: '', showTimeSetting: true, courseTitle: '',
-                    leftWidth: 350, isDragging: false
-                }
+                    viewMode: '', isAuthenticated: false, adminPasswordInput: '',
+                    roomId: '', rooms: [], projectName: '', newRoomName: '', hasLegacyData: false,
+                    isLoading: true, loadingTopic: false, connectionError: '',
+                    showControls: true, leftWidth: 350, isDragging: false,
+                    questions: [], newQuestionText: '', editingId: null, editingText: '', editingTopicId: null,
+                    myAuthorId: '', myLikedIds: [], legacyLikedIds: [], processingLikes: {}, submitting: false,
+                    sortBy: 'likes', qrCodeUrl: '', qrStatus: '', showTimeSetting: true, courseTitle: '',
+                    newTopicTitle: '', extraTopics: [], activeTopicId: LEGACY_TOPIC, legacyTopicTitle: '自由提問',
+                    switchBusy: false, addingTopic: false, topicListener: null, settingsListener: null,
+                    questionListener: null, roomNameListener: null,
+                    showRecovery: false, recoveryLoading: false, recoveryRecords: [], restoring: false
+                };
             },
             computed: {
+                topics() {
+                    const base = [{ id: LEGACY_TOPIC, title: this.legacyTopicTitle || '自由提問', createdAt: 0, fixed: true }];
+                    return base.concat(this.extraTopics);
+                },
+                currentTopic() {
+                    return this.topics.find(t => t.id === this.activeTopicId) || this.topics[0];
+                },
+                currentTopicIndex() {
+                    return this.topics.findIndex(t => t.id === this.activeTopicId);
+                },
                 sortedQuestions() {
-                    let list = [...this.questions];
+                    const list = [...this.questions];
                     if (this.sortBy === 'likes') {
-                        list.sort((a, b) => { const likesA = a.likes || 0; const likesB = b.likes || 0; if (likesA !== likesB) return likesB - likesA; return b.timestamp - a.timestamp; });
-                    } else { list.sort((a, b) => b.timestamp - a.timestamp); }
+                        list.sort((a, b) => (Number(b.likes) || 0) - (Number(a.likes) || 0) || (Number(b.timestamp) || 0) - (Number(a.timestamp) || 0));
+                    } else {
+                        list.sort((a, b) => (Number(b.timestamp) || 0) - (Number(a.timestamp) || 0));
+                    }
                     return list;
+                },
+                displayCourseTitle() { return this.courseTitle || this.projectName || '即時提問互動牆'; },
+                studentLink() { return this.roomId ? projectLink(this.roomId) : ''; }
+            },
+            watch: {
+                activeTopicId(newId, oldId) {
+                    if (newId === oldId || !this.roomId) return;
+                    if (oldId) this.rememberDraft(oldId);
+                    this.newQuestionText = this.loadDraft(newId);
+                    this.cancelEdit();
+                    this.subscribeToQuestions();
                 }
             },
             mounted() {
-                const urlParams = new URLSearchParams(window.location.search);
-                const room = urlParams.get('room');
-                const role = urlParams.get('role');
-
+                const params = new URLSearchParams(window.location.search);
+                const room = params.get('room');
+                const role = params.get('role');
                 if (!room) {
-                    // ====== 進入管理後台模式 ======
                     this.viewMode = 'admin';
-                    
-                    // 檢查 Session 中是否已經登入過
-                    if (sessionStorage.getItem('admin_authenticated') === 'true') {
-                        this.isAuthenticated = true;
-                    }
-                    
-                    // 1. 載入新版的房間列表
-                    db.ref('qa_system_rooms').on('value', snapshot => {
-                        const val = snapshot.val();
-                        if (val) {
-                            this.rooms = Object.keys(val).map(key => ({ id: key, ...val[key] })).sort((a, b) => b.createdAt - a.createdAt);
-                        } else {
-                            this.rooms = [];
-                        }
+                    this.isAuthenticated = sessionStorage.getItem('admin_authenticated') === 'true';
+                    db.ref('qa_system_rooms').on('value', snap => {
+                        const val = snap.val() || {};
+                        this.rooms = Object.keys(val).map(id => ({ id, ...val[id] }))
+                            .sort((a,b) => (Number(b.createdAt) || 0) - (Number(a.createdAt) || 0));
                         this.isLoading = false;
-                    });
-
-                    // 2. 偵測是否有舊版 `qa_system` 的資料
-                    db.ref('qa_system').once('value', snapshot => {
-                        if (snapshot.exists()) {
-                            this.hasLegacyData = true; 
-                        }
-                    });
-
-                } else {
-                    // ====== 進入個別組別模式 ======
-                    this.roomId = room;
-                    if (role === 'teacher') {
-                        this.viewMode = 'teacher';
-                    } else {
-                        this.viewMode = 'student';
-                        this.sortBy = 'time';
-                    }
-
-                    let storedId = localStorage.getItem('qa_author_id');
-                    if (!storedId) { storedId = 'user_' + Date.now() + '_' + Math.floor(Math.random() * 1000); localStorage.setItem('qa_author_id', storedId); }
-                    this.myAuthorId = storedId;
-                    const storedLikes = localStorage.getItem('qa_liked_ids');
-                    if (storedLikes) { this.myLikedIds = JSON.parse(storedLikes); }
-
-                    // 讀取該組別專屬的資料路徑
-                    db.ref(`qa_rooms_data/${this.roomId}/questions`).on('value', snapshot => {
-                        const val = snapshot.val(); this.isLoading = false;
-                        if (val) { this.questions = Object.keys(val).map(key => ({ id: key, ...val[key] })); } else { this.questions = []; }
-                    });
-                    db.ref(`qa_rooms_data/${this.roomId}/settings`).on('value', snapshot => {
-                        const settings = snapshot.val() || {};
-                        if (settings.qrCode) this.qrCodeUrl = settings.qrCode; else this.qrCodeUrl = '';
-                        if (settings.showTime !== undefined) this.showTimeSetting = settings.showTime; else this.showTimeSetting = true;
-                        if (settings.courseTitle) this.courseTitle = settings.courseTitle; else this.courseTitle = '';
-                    });
+                    }, err => this.onDbError(err));
+                    db.ref('qa_system').once('value').then(snap => { this.hasLegacyData = snap.exists(); })
+                        .catch(err => this.onDbError(err));
+                    return;
                 }
+                if (!safeId(room)) {
+                    this.viewMode = 'student';
+                    this.connectionError = '專案連結的識別碼無效。';
+                    this.isLoading = false;
+                    return;
+                }
+                this.roomId = room;
+                this.viewMode = role === 'teacher' ? 'teacher' : 'student';
+                this.sortBy = this.viewMode === 'teacher' ? 'likes' : 'time';
+                let userId = localStorage.getItem('qa_author_id');
+                if (!userId) {
+                    userId = 'user_' + Date.now() + '_' + Math.random().toString(36).slice(2, 12);
+                    localStorage.setItem('qa_author_id', userId);
+                }
+                this.myAuthorId = userId;
+                try {
+                    const newer = JSON.parse(localStorage.getItem('qa_liked_records_v2') || '[]');
+                    this.myLikedIds = Array.isArray(newer) ? newer : [];
+                    const older = JSON.parse(localStorage.getItem('qa_liked_ids') || '[]');
+                    this.legacyLikedIds = Array.isArray(older) ? older : [];
+                } catch (_) { this.myLikedIds = []; this.legacyLikedIds = []; }
+                this.newQuestionText = this.loadDraft(LEGACY_TOPIC);
+                this.roomNameListener = db.ref(`qa_system_rooms/${room}/name`);
+                this.roomNameListener.on('value', snap => { this.projectName = snap.val() || ''; }, err => this.onDbError(err));
+                this.topicListener = db.ref(`qa_rooms_data/${room}/topics`);
+                this.topicListener.on('value', snap => {
+                    const val = snap.val() || {};
+                    this.extraTopics = Object.keys(val).map(id => ({id, ...val[id]}))
+                        .sort((a,b) => (Number(a.createdAt) || 0) - (Number(b.createdAt) || 0) || a.id.localeCompare(b.id));
+                }, err => this.onDbError(err));
+                this.settingsListener = db.ref(`qa_rooms_data/${room}/settings`);
+                this.settingsListener.on('value', snap => {
+                    const val = snap.val() || {};
+                    this.courseTitle = val.courseTitle || '';
+                    this.qrCodeUrl = val.qrCode || '';
+                    this.showTimeSetting = val.showTime !== false;
+                    this.legacyTopicTitle = val.legacyTopicTitle || '自由提問';
+                    const nextId = safeId(val.activeTopicId) ? val.activeTopicId : LEGACY_TOPIC;
+                    if (this.activeTopicId !== nextId) this.activeTopicId = nextId;
+                }, err => this.onDbError(err));
+                // 即使舊版資料沒有 settings，也會直接監聽原來的 questions，完全不更動原紀錄。
+                this.subscribeToQuestions();
+                if (this.viewMode === 'teacher') this.$nextTick(() => this.renderQrCode());
+            },
+            beforeUnmount() {
+                if (this.questionListener) this.questionListener.off();
+                if (this.settingsListener) this.settingsListener.off();
+                if (this.topicListener) this.topicListener.off();
+                if (this.roomNameListener) this.roomNameListener.off();
+                window.removeEventListener('mousemove', this.doDrag);
+                window.removeEventListener('mouseup', this.stopDrag);
             },
             methods: {
-                /* --- 後台管理功能 --- */
+                onDbError(err) {
+                    console.error(err);
+                    this.connectionError = 'Firebase 讀寫失敗：' + friendlyError(err) + '。請檢查網路與 Realtime Database 規則。';
+                    this.isLoading = false;
+                    this.loadingTopic = false;
+                },
+                topicQuestionsPath(topicId = this.activeTopicId) {
+                    return topicId === LEGACY_TOPIC ? `qa_rooms_data/${this.roomId}/questions`
+                        : `qa_rooms_data/${this.roomId}/topic_questions/${topicId}`;
+                },
+                subscribeToQuestions() {
+                    if (!this.roomId) return;
+                    if (this.questionListener) this.questionListener.off();
+                    const topicId = this.activeTopicId;
+                    this.questions = [];
+                    this.loadingTopic = true;
+                    this.questionListener = db.ref(this.topicQuestionsPath(topicId));
+                    this.questionListener.on('value', snap => {
+                        if (topicId !== this.activeTopicId) return;
+                        const val = snap.val() || {};
+                        this.questions = Object.keys(val).map(id => ({id, ...val[id]}));
+                        this.loadingTopic = false;
+                        this.isLoading = false;
+                    }, err => this.onDbError(err));
+                },
+                rememberDraft(topicId) {
+                    try { localStorage.setItem(`qa_draft_v2_${this.roomId}_${topicId}`, this.newQuestionText); }
+                    catch (_) { /* 隱私模式無法儲存時仍保留當前輸入 */ }
+                },
+                loadDraft(topicId) {
+                    try { return localStorage.getItem(`qa_draft_v2_${this.roomId}_${topicId}`) || ''; }
+                    catch (_) { return ''; }
+                },
                 loginAdmin() {
                     if (this.adminPasswordInput === '20150117') {
                         this.isAuthenticated = true;
                         sessionStorage.setItem('admin_authenticated', 'true');
-                        this.adminPasswordInput = ''; // 清空密碼
-                    } else {
-                        alert('密碼錯誤，請重新輸入！');
                         this.adminPasswordInput = '';
-                    }
+                    } else { alert('密碼錯誤，請重新輸入！'); this.adminPasswordInput = ''; }
                 },
-                createRoom() {
+                async createRoom() {
                     const name = this.newRoomName.trim();
-                    if (!name) { alert('請輸入組別名稱'); return; }
-                    db.ref('qa_system_rooms').push({
-                        name: name,
-                        createdAt: firebase.database.ServerValue.TIMESTAMP
-                    }).then(() => {
+                    if (!name) return alert('請輸入專案名稱');
+                    const id = db.ref('qa_system_rooms').push().key;
+                    try {
+                        await db.ref().update({
+                            [`qa_system_rooms/${id}`]: {name, createdAt: firebase.database.ServerValue.TIMESTAMP},
+                            [`qa_rooms_data/${id}/settings`]: { activeTopicId: LEGACY_TOPIC, legacyTopicTitle: '自由提問', showTime: true }
+                        });
                         this.newRoomName = '';
-                    });
+                    } catch (err) { this.onDbError(err); alert('建立專案失敗：' + friendlyError(err)); }
                 },
-                editRoomName(room) {
-                    const newName = prompt('✏️ 請輸入新的主題名稱：', room.name);
-                    if (newName !== null && newName.trim() !== '') {
-                        db.ref(`qa_system_rooms/${room.id}`).update({ name: newName.trim() });
-                    }
+                // 更新或移除前，先在另一個持久節點建立 before_remove/before_edit checkpoint。
+                // 復原中心保留原始絕對路徑，避免使用會錯位的列表索引。
+                async checkpoint(kind, paths, description, projectId = this.roomId) {
+                    const unique = [...new Set(paths)];
+                    if (!unique.length || unique.some(p => !this.safeRecoveryPath(p))) throw new Error('備份路徑無效，操作已取消');
+                    const snaps = await Promise.all(unique.map(p => db.ref(p).once('value')));
+                    const entries = unique.map((path, i) => ({ path, exists: snaps[i].exists(), value: snaps[i].val() }));
+                    const backRef = db.ref('qa_recovery').push();
+                    await backRef.set({
+                        kind, projectId: projectId || '', description: description || '',
+                        createdAt: firebase.database.ServerValue.TIMESTAMP,
+                        entries, version: 2, checkpointType: kind.startsWith('before_remove') ? 'before_remove' : kind
+                    });
+                    return backRef.key;
+                },
+                safeRecoveryPath(path) {
+                    return typeof path === 'string' && (
+                        path === 'qa_system' ||
+                        /^qa_system_rooms\/[a-zA-Z0-9_-]{1,160}(?:\/name)?$/.test(path) ||
+                        /^qa_rooms_data\/[a-zA-Z0-9_-]{1,160}(?:\/(?:settings(?:\/(?:activeTopicId|legacyTopicTitle|courseTitle|showTime|qrCode))?|questions(?:\/[a-zA-Z0-9_-]{1,160})?|topics(?:\/[a-zA-Z0-9_-]{1,160}(?:\/title)?)?|topic_questions(?:\/[a-zA-Z0-9_-]{1,160}(?:\/[a-zA-Z0-9_-]{1,160})?)?))?$/.test(path)
+                    );
+                },
+                async editRoomName(room) {
+                    const answer = prompt('✏️ 請輸入新的專案名稱：', room.name);
+                    if (answer === null || !answer.trim() || answer.trim() === room.name) return;
+                    try {
+                        const path = `qa_system_rooms/${room.id}/name`;
+                        await this.checkpoint('before_edit_project', [path], '修改專案名稱', room.id);
+                        await db.ref(path).set(answer.trim());
+                    } catch (err) { alert('修改取消，備份或寫入失敗：' + friendlyError(err)); }
                 },
                 async duplicateRoom(room) {
-                    const newName = prompt('📑 請輸入複製的主題名稱：', room.name + ' (複製)');
-                    if (newName === null || newName.trim() === '') return;
-
+                    const answer = prompt('📑 請輸入複製後的專案名稱：', room.name + ' (複製)');
+                    if (answer === null || !answer.trim()) return;
+                    const id = db.ref('qa_system_rooms').push().key;
                     try {
-                        // 1. 建立新的房間節點
-                        const newRoomRef = await db.ref('qa_system_rooms').push({
-                            name: newName.trim(),
-                            createdAt: firebase.database.ServerValue.TIMESTAMP
-                        });
-                        const newRoomId = newRoomRef.key;
-
-                        // 2. 抓取舊房間的設定 (QR Code、標題、顯示時間等)
-                        const snapshot = await db.ref(`qa_rooms_data/${room.id}/settings`).once('value');
-                        const oldSettings = snapshot.val();
-
-                        // 3. 將設定寫入新房間 (提問資料 questions 不複製，保持乾淨)
-                        if (oldSettings) {
-                            await db.ref(`qa_rooms_data/${newRoomId}/settings`).set(oldSettings);
-                        }
-                        
-                        alert('✅ 複製成功！');
-                    } catch (err) {
-                        console.error(err);
-                        alert('❌ 複製失敗：' + err.message);
-                    }
+                        const [settingsSnap, topicsSnap] = await Promise.all([
+                            db.ref(`qa_rooms_data/${room.id}/settings`).once('value'),
+                            db.ref(`qa_rooms_data/${room.id}/topics`).once('value')
+                        ]);
+                        const updates = {
+                            [`qa_system_rooms/${id}`]: {name: answer.trim(), createdAt: firebase.database.ServerValue.TIMESTAMP},
+                            [`qa_rooms_data/${id}/settings`]: settingsSnap.val() || {activeTopicId: LEGACY_TOPIC, legacyTopicTitle: '自由提問'}
+                        };
+                        if (topicsSnap.exists()) updates[`qa_rooms_data/${id}/topics`] = topicsSnap.val();
+                        await db.ref().update(updates);
+                        alert('✅ 專案與所有題目設定已複製；原學員提問及按讚不會複製，新專案擁有自己的固定連結與 QR Code。');
+                    } catch (err) { alert('❌ 複製失敗：' + friendlyError(err)); }
                 },
-                deleteRoom(id) {
-                    if (confirm('確定要刪除這個組別嗎？相關的所有提問資料也會被清空且無法復原！')) {
-                        db.ref(`qa_system_rooms/${id}`).remove();
-                        db.ref(`qa_rooms_data/${id}`).remove(); 
-                    }
+                async deleteRoom(id) {
+                    if (!safeId(id) || !confirm('確定移除整個專案及其所有題目的提問？會先完整備份至「資料備份／還原中心」，若備份失敗就不會刪除。')) return;
+                    try {
+                        await this.checkpoint('before_remove_project', [`qa_system_rooms/${id}`, `qa_rooms_data/${id}`], '刪除整個專案', id);
+                        await db.ref().update({[`qa_system_rooms/${id}`]: null, [`qa_rooms_data/${id}`]: null});
+                        alert('已移除專案；可至「資料備份／還原中心」還原。');
+                        if (this.showRecovery) this.loadBackups();
+                    } catch (err) { alert('已取消刪除：備份或操作失敗。' + friendlyError(err)); }
                 },
-                deleteLegacyData() {
-                    if (confirm('確定要永久刪除舊版的提問資料嗎？（刪除後無法復原，並將釋放您的 Firebase 空間）')) {
-                        db.ref('qa_system').remove().then(() => {
-                            alert('舊版資料已成功清除！');
-                            this.hasLegacyData = false; 
-                        }).catch(err => {
-                            alert('刪除失敗: ' + err.message);
-                        });
-                    }
+                async deleteLegacyData() {
+                    if (!confirm('這是舊版未分組資料。確定先備份，再移除原資料？如備份失敗將不會刪除。')) return;
+                    try {
+                        await this.checkpoint('before_remove_legacy_root', ['qa_system'], '移除舊版未分組資料', 'legacy_root');
+                        await db.ref('qa_system').remove();
+                        this.hasLegacyData = false;
+                        alert('舊資料已備份後移除，可在還原中心復原。');
+                    } catch (err) { alert('已取消刪除：' + friendlyError(err)); }
                 },
-                openTeacherView(id) {
-                    const url = window.location.origin + window.location.pathname + `?room=${id}&role=teacher`;
-                    window.open(url, '_blank');
+                openTeacherView(id) { window.open(projectLink(id, true), '_blank', 'noopener'); },
+                async copyText(text) {
+                    try {
+                        await navigator.clipboard.writeText(text);
+                        alert('✅ 已複製連結');
+                    } catch (_) { prompt('請手動複製此連結：', text); }
                 },
-                copyStudentLink(id) {
-                    const url = window.location.origin + window.location.pathname + `?room=${id}`;
-                    navigator.clipboard.writeText(url).then(() => {
-                        alert('✅ 已成功複製學員連結！');
-                    }).catch(err => {
-                        console.error('複製失敗', err);
-                        alert('複製失敗，請手動複製連結');
-                    });
-                },
+                copyStudentLink(id) { this.copyText(projectLink(id)); },
                 formatDate(ts) {
                     if (!ts) return '';
                     const d = new Date(ts);
-                    return d.getFullYear() + '/' + (d.getMonth() + 1) + '/' + d.getDate() + ' ' + 
-                           (d.getHours() < 12 ? '上午' : '下午') + 
-                           (d.getHours() % 12 || 12) + ':' + 
-                           d.getMinutes().toString().padStart(2, '0') + ':' + 
-                           d.getSeconds().toString().padStart(2, '0');
+                    return `${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()} ${d.getHours() < 12 ? '上午' : '下午'}${d.getHours() % 12 || 12}:${String(d.getMinutes()).padStart(2,'0')}`;
                 },
-
-                /* --- 原有互動牆功能 --- */
+                async addTopic() {
+                    const title = this.newTopicTitle.trim();
+                    if (!title) return alert('請先輸入題目內容');
+                    if (title.length > 500) return alert('題目請勿超過 500 字');
+                    if (this.addingTopic) return;
+                    this.addingTopic = true;
+                    try {
+                        const ref = db.ref(`qa_rooms_data/${this.roomId}/topics`).push();
+                        await ref.set({title, createdAt: firebase.database.ServerValue.TIMESTAMP});
+                        this.newTopicTitle = '';
+                        // 新題目建立後立即向全班廣播切題，學員不用重新掃碼。
+                        await this.switchTopic(ref.key);
+                    } catch (err) { alert('新增題目失敗：' + friendlyError(err)); }
+                    finally { this.addingTopic = false; }
+                },
+                async switchTopic(id) {
+                    if (this.viewMode !== 'teacher' || !safeId(id) || this.switchBusy) return;
+                    if (id === this.activeTopicId) return;
+                    this.switchBusy = true;
+                    try {
+                        if (id !== LEGACY_TOPIC) {
+                            const snap = await db.ref(`qa_rooms_data/${this.roomId}/topics/${id}`).once('value');
+                            if (!snap.exists()) throw new Error('該題目已不存在');
+                        }
+                        await db.ref(`qa_rooms_data/${this.roomId}/settings/activeTopicId`).set(id);
+                    } catch (err) { alert('切換題目失敗：' + friendlyError(err)); }
+                    finally { this.switchBusy = false; }
+                },
+                goRelativeTopic(delta) {
+                    const next = this.topics[this.currentTopicIndex + delta];
+                    if (next) this.switchTopic(next.id);
+                },
+                async renameCurrentTopic() {
+                    const topic = this.currentTopic;
+                    const answer = prompt('✏️ 修改這道題目：', topic.title);
+                    if (answer === null || !answer.trim() || answer.trim() === topic.title) return;
+                    if (answer.trim().length > 500) return alert('題目請勿超過 500 字');
+                    const path = topic.id === LEGACY_TOPIC
+                        ? `qa_rooms_data/${this.roomId}/settings/legacyTopicTitle`
+                        : `qa_rooms_data/${this.roomId}/topics/${topic.id}/title`;
+                    try {
+                        await this.checkpoint('before_edit_topic', [path], `修改題目：${topic.title}`);
+                        await db.ref(path).set(answer.trim());
+                    } catch (err) { alert('修改失敗，原資料未覆寫：' + friendlyError(err)); }
+                },
+                async deleteCurrentTopic() {
+                    const topic = this.currentTopic;
+                    if (topic.id === LEGACY_TOPIC) return alert('預設／舊版題目不可刪除，確保原本學員提問可以保留與查詢。');
+                    if (!confirm(`確定刪除題目「${topic.title}」與其所有提問？系統會先建立完整可還原備份。`)) return;
+                    try {
+                        const paths = [`qa_rooms_data/${this.roomId}/topics/${topic.id}`,
+                            `qa_rooms_data/${this.roomId}/topic_questions/${topic.id}`,
+                            `qa_rooms_data/${this.roomId}/settings/activeTopicId`];
+                        await this.checkpoint('before_remove_topic', paths, `刪除題目：${topic.title}`);
+                        await db.ref().update({
+                            [`qa_rooms_data/${this.roomId}/settings/activeTopicId`]: LEGACY_TOPIC,
+                            [`qa_rooms_data/${this.roomId}/topics/${topic.id}`]: null,
+                            [`qa_rooms_data/${this.roomId}/topic_questions/${topic.id}`]: null
+                        });
+                        alert('題目已移除，可從管理後台還原中心完整還原。');
+                    } catch (err) { alert('刪除已取消：' + friendlyError(err)); }
+                },
                 startDrag(e) {
-                    this.isDragging = true; document.body.style.userSelect = 'none'; document.body.style.cursor = 'col-resize';
-                    window.addEventListener('mousemove', this.doDrag); window.addEventListener('mouseup', this.stopDrag);
+                    this.isDragging = true;
+                    document.body.style.userSelect = 'none'; document.body.style.cursor = 'col-resize';
+                    window.addEventListener('mousemove', this.doDrag);
+                    window.addEventListener('mouseup', this.stopDrag);
                 },
                 doDrag(e) {
-                    if (this.isDragging) {
-                        const newWidth = e.clientX;
-                        if (newWidth > 50 && newWidth < window.innerWidth - 100) { this.leftWidth = newWidth; }
-                    }
+                    if (!this.isDragging) return;
+                    const width = e.clientX;
+                    if (width > 50 && width < window.innerWidth - 100) this.leftWidth = width;
                 },
                 stopDrag() {
                     this.isDragging = false; document.body.style.userSelect = ''; document.body.style.cursor = '';
-                    window.removeEventListener('mousemove', this.doDrag); window.removeEventListener('mouseup', this.stopDrag);
+                    window.removeEventListener('mousemove', this.doDrag);
+                    window.removeEventListener('mouseup', this.stopDrag);
                 },
-                saveSettings() { db.ref(`qa_rooms_data/${this.roomId}/settings`).update({ courseTitle: this.courseTitle }); },
-                submitQuestion() {
-                    const text = this.newQuestionText.trim(); if (!text) return;
-                    db.ref(`qa_rooms_data/${this.roomId}/questions`).push({ text: text, timestamp: firebase.database.ServerValue.TIMESTAMP, likes: 0, authorId: this.myAuthorId }).then(() => { this.newQuestionText = ''; });
+                async saveSettings() {
+                    const path = `qa_rooms_data/${this.roomId}/settings/courseTitle`;
+                    try {
+                        const old = await db.ref(path).once('value');
+                        if ((old.val() || '') === this.courseTitle) return;
+                        await this.checkpoint('before_edit_settings', [path], '修改課程顯示標題');
+                        await db.ref(path).set(this.courseTitle);
+                    } catch (err) { alert('標題儲存失敗：' + friendlyError(err)); }
+                },
+                async submitQuestion() {
+                    const message = this.newQuestionText.trim();
+                    const topicId = this.activeTopicId;
+                    if (!message || this.submitting || this.loadingTopic) return;
+                    if (message.length > 2000) return alert('內容請控制在 2000 字內');
+                    this.submitting = true;
+                    try {
+                        // 確認當前班級題目，避免講師剛切題時送錯題。
+                        const activeSnap = await db.ref(`qa_rooms_data/${this.roomId}/settings/activeTopicId`).once('value');
+                        const serverTopic = activeSnap.val() || LEGACY_TOPIC;
+                        if (serverTopic !== topicId) {
+                            alert('講師剛切換題目，內容仍已保留，請確認目前題目後再送出。');
+                            return;
+                        }
+                        if (topicId !== LEGACY_TOPIC) {
+                            const topicSnap = await db.ref(`qa_rooms_data/${this.roomId}/topics/${topicId}`).once('value');
+                            if (!topicSnap.exists()) throw new Error('目前題目已被刪除，未送出');
+                        }
+                        await db.ref(this.topicQuestionsPath(topicId)).push({
+                            text: message, timestamp: firebase.database.ServerValue.TIMESTAMP,
+                            likes: 0, authorId: this.myAuthorId
+                        });
+                        if (this.activeTopicId === topicId && this.newQuestionText.trim() === message) {
+                            this.newQuestionText = '';
+                            this.rememberDraft(topicId);
+                        } else {
+                            try { localStorage.removeItem(`qa_draft_v2_${this.roomId}_${topicId}`); } catch (_) {}
+                        }
+                    } catch (err) { alert('送出失敗，輸入內容已保留：' + friendlyError(err)); }
+                    finally { this.submitting = false; }
                 },
                 canEdit(q) { return this.viewMode === 'teacher' || q.authorId === this.myAuthorId; },
                 canDelete(q) { return this.viewMode === 'teacher' || q.authorId === this.myAuthorId; },
                 isMyQuestion(q) { return q.authorId === this.myAuthorId; },
-                startEdit(q) { this.editingId = q.id; this.editingText = q.text; this.$nextTick(() => { if(this.$refs.editInput && this.$refs.editInput[0]) this.$refs.editInput[0].focus(); }); },
-                cancelEdit() { this.editingId = null; this.editingText = ''; },
-                saveEdit(id) { if (!this.editingText.trim()) return; db.ref(`qa_rooms_data/${this.roomId}/questions/${id}`).update({ text: this.editingText }).then(() => { this.editingId = null; }); },
-                deleteQuestion(id) { if (confirm('確定要刪除這個問題嗎？')) { db.ref(`qa_rooms_data/${this.roomId}/questions/${id}`).remove(); } },
-                hasLiked(id) { return this.myLikedIds.includes(id); },
-                toggleLike(q) {
-                    const id = q.id; if (this.processingLikes[id]) return; this.processingLikes[id] = true;
-                    const isLiked = this.hasLiked(id);
-                    db.ref(`qa_rooms_data/${this.roomId}/questions/${id}/likes`).transaction((currentLikes) => {
-                        const val = currentLikes || 0; return isLiked ? (val > 0 ? val - 1 : 0) : val + 1;
-                    }).then(() => {
-                        if (isLiked) { this.myLikedIds = this.myLikedIds.filter(lid => lid !== id); } else { this.myLikedIds.push(id); }
-                        localStorage.setItem('qa_liked_ids', JSON.stringify(this.myLikedIds)); this.processingLikes[id] = false;
-                    }).catch(() => { this.processingLikes[id] = false; });
+                startEdit(q) {
+                    this.editingId = q.id; this.editingTopicId = this.activeTopicId; this.editingText = q.text;
+                    this.$nextTick(() => {
+                        const ref = this.$refs.editInput;
+                        const target = Array.isArray(ref) ? ref[0] : ref;
+                        if (target) target.focus();
+                    });
                 },
-                toggleTimeSetting() { db.ref(`qa_rooms_data/${this.roomId}/settings/showTime`).set(!this.showTimeSetting); },
-                clearAllData() { if (confirm('警告：這將會清空本組別所有學員的提問！確定執行嗎？')) { db.ref(`qa_rooms_data/${this.roomId}/questions`).remove(); } },
-                handleQrUpload(event) {
-                    const file = event.target.files[0]; if (!file) return;
-                    if (file.size > 500 * 1024) { alert('圖片太大，請使用小於 500KB 的圖片'); return; }
-                    const reader = new FileReader(); reader.onload = (e) => { db.ref(`qa_rooms_data/${this.roomId}/settings/qrCode`).set(e.target.result); }; reader.readAsDataURL(file);
+                cancelEdit() { this.editingId = null; this.editingText = ''; this.editingTopicId = null; },
+                async saveEdit(id) {
+                    const text = this.editingText.trim();
+                    if (!text || text.length > 2000 || this.editingTopicId !== this.activeTopicId || !safeId(id)) return;
+                    const path = `${this.topicQuestionsPath(this.editingTopicId)}/${id}`;
+                    try {
+                        const oldSnap = await db.ref(path).once('value');
+                        if (!oldSnap.exists()) throw new Error('提問已不存在');
+                        if (!this.canEdit(oldSnap.val())) throw new Error('沒有編輯權限');
+                        if (oldSnap.val().text !== text) {
+                            await this.checkpoint('before_edit_question', [path], '修改學員提問');
+                            await db.ref(path).update({text});
+                        }
+                        this.cancelEdit();
+                    } catch (err) { alert('修改失敗：' + friendlyError(err)); }
                 },
-                formatTime(ts) { if (!ts) return ''; const date = new Date(ts); return `${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`; }
+                async deleteQuestion(id) {
+                    if (!safeId(id) || !confirm('確定刪除這筆提問？會先做可還原備份。')) return;
+                    const topicId = this.activeTopicId;
+                    const path = `${this.topicQuestionsPath(topicId)}/${id}`;
+                    try {
+                        const original = await db.ref(path).once('value');
+                        if (!original.exists()) return alert('提問已不存在');
+                        if (!this.canDelete(original.val())) return alert('沒有刪除權限');
+                        await this.checkpoint('before_remove_question', [path], `刪除題目 ${topicId} 的提問`);
+                        await db.ref(path).remove();
+                    } catch (err) { alert('刪除已取消：備份或操作失敗。' + friendlyError(err)); }
+                },
+                likeKey(id, topicId = this.activeTopicId) { return `${this.roomId}|${topicId}|${id}`; },
+                hasLiked(id) {
+                    return this.myLikedIds.includes(this.likeKey(id)) ||
+                        (this.activeTopicId === LEGACY_TOPIC && this.legacyLikedIds.includes(id));
+                },
+                async toggleLike(q) {
+                    const id = q.id, topicId = this.activeTopicId;
+                    const key = this.likeKey(id, topicId);
+                    if (this.processingLikes[key]) return;
+                    this.processingLikes[key] = true;
+                    const wasLiked = this.hasLiked(id);
+                    try {
+                        const result = await db.ref(`${this.topicQuestionsPath(topicId)}/${id}`).transaction(current => {
+                            // 對整筆提問做交易：可以處理舊資料沒有 likes 欄位的情形，
+                            // 同時避免問題已刪除時重新長出孤立的按讚節點。
+                            if (!current || typeof current !== 'object' || typeof current.text !== 'string') return;
+                            const num = Number(current.likes) || 0;
+                            return {...current, likes: wasLiked ? Math.max(0, num - 1) : num + 1};
+                        });
+                        if (!result.committed) return;
+                        this.myLikedIds = this.myLikedIds.filter(x => x !== key);
+                        if (wasLiked) {
+                            if (topicId === LEGACY_TOPIC) this.legacyLikedIds = this.legacyLikedIds.filter(x => x !== id);
+                            localStorage.setItem('qa_liked_ids', JSON.stringify(this.legacyLikedIds));
+                        } else { this.myLikedIds.push(key); }
+                        localStorage.setItem('qa_liked_records_v2', JSON.stringify(this.myLikedIds));
+                    } catch (err) { alert('按讚更新失敗：' + friendlyError(err)); }
+                    finally { delete this.processingLikes[key]; }
+                },
+                async toggleTimeSetting() {
+                    const path = `qa_rooms_data/${this.roomId}/settings/showTime`;
+                    try {
+                        await this.checkpoint('before_edit_settings', [path], '切換時間顯示設定');
+                        await db.ref(path).set(!this.showTimeSetting);
+                    } catch (err) { alert('變更失敗：' + friendlyError(err)); }
+                },
+                async clearAllData() {
+                    const topicId = this.activeTopicId;
+                    const path = this.topicQuestionsPath(topicId);
+                    if (!confirm(`確定清空「${this.currentTopic.title}」這一題的所有提問嗎？其他題目不受影響；會先備份以供還原。`)) return;
+                    try {
+                        await this.checkpoint('before_remove_topic_questions', [path], `清空題目 ${topicId} 的全部提問`);
+                        await db.ref(path).remove();
+                        alert('本題提問已備份並清空；可從管理後台還原。');
+                    } catch (err) { alert('清空已取消：' + friendlyError(err)); }
+                },
+                async handleQrUpload(event) {
+                    const file = event.target.files && event.target.files[0];
+                    if (!file) return;
+                    if (file.size > 500 * 1024) return alert('圖片需小於 500KB');
+                    try {
+                        const dataUrl = await new Promise((resolve,reject) => {
+                            const reader = new FileReader(); reader.onload = () => resolve(reader.result);
+                            reader.onerror = () => reject(new Error('無法讀取圖片'));
+                            reader.readAsDataURL(file);
+                        });
+                        const path = `qa_rooms_data/${this.roomId}/settings/qrCode`;
+                        await this.checkpoint('before_edit_settings', [path], '更換舊版自訂 QR 圖片');
+                        await db.ref(path).set(dataUrl);
+                        alert('圖片已保存為附加參考，主要固定專案 QR 仍會自動生成，不會因切題變動。');
+                    } catch (err) { alert('圖片儲存失敗：' + friendlyError(err)); }
+                    finally { event.target.value = ''; }
+                },
+                renderQrCode() {
+                    if (this.viewMode !== 'teacher') return;
+                    if (!['http:', 'https:'].includes(window.location.protocol)) {
+                        this.qrStatus = '請先把 HTML 部署在 HTTPS 網站，才可產生可供學員掃描的固定專案 QR。';
+                        return;
+                    }
+                    if (!window.QRCode) { this.qrStatus = 'QR 產生元件未載入，請檢查 CDN 網路；仍可複製學員連結。'; return; }
+                    const target = this.$refs.fixedQr;
+                    if (!target) return;
+                    target.replaceChildren();
+                    try {
+                        new QRCode(target, { text: this.studentLink, width: 230, height: 230,
+                            colorDark: '#0f172a', colorLight: '#ffffff', correctLevel: QRCode.CorrectLevel.H });
+                        this.qrStatus = '';
+                    } catch (err) { this.qrStatus = 'QR 產生失敗：' + friendlyError(err); }
+                },
+                formatTime(ts) {
+                    if (!ts) return '';
+                    const d = new Date(ts);
+                    return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+                },
+                openAdminRecovery() {
+                    const url = new URL(window.location.href); url.search = ''; url.hash = '';
+                    window.open(url.toString(), '_blank', 'noopener');
+                },
+                async toggleRecoveryPanel() {
+                    this.showRecovery = !this.showRecovery;
+                    if (this.showRecovery) await this.loadBackups();
+                },
+                async loadBackups() {
+                    if (!this.isAuthenticated) return;
+                    this.recoveryLoading = true;
+                    try {
+                        // push key 依建立時間排序，不需依賴額外 Firebase .indexOn。
+                        const snap = await db.ref('qa_recovery').limitToLast(100).once('value');
+                        const val = snap.val() || {};
+                        this.recoveryRecords = Object.keys(val).map(id => ({ id, ...val[id] })).reverse();
+                    } catch (err) { alert('讀取備份失敗：' + friendlyError(err)); }
+                    finally { this.recoveryLoading = false; }
+                },
+                async restoreBackup(item) {
+                    if (!this.isAuthenticated || this.restoring) return;
+                    if (!confirm(`確定還原「${item.description || item.kind}」？如原位置已有資料，系統將先另建目前狀態的備份，才允許覆寫。`)) return;
+                    this.restoring = true;
+                    try {
+                        const snap = await db.ref(`qa_recovery/${item.id}`).once('value');
+                        if (!snap.exists()) throw new Error('找不到這份備份');
+                        const backup = snap.val();
+                        const entries = Array.isArray(backup.entries) ? backup.entries : [];
+                        if (!entries.length || entries.some(e => !this.safeRecoveryPath(e.path))) throw new Error('備份內容或路徑不正確');
+                        const current = await Promise.all(entries.map(e => db.ref(e.path).once('value')));
+                        const hasCollision = current.some((s,i) => s.exists() && JSON.stringify(s.val()) !== JSON.stringify(entries[i].exists ? entries[i].value : null));
+                        if (hasCollision) {
+                            if (!confirm('原位置已有不同資料！還原可能覆寫現有內容。確定先建立「還原前」完整備份，再繼續嗎？')) return;
+                            await this.checkpoint('before_restore', entries.map(e => e.path), `還原前狀態：${backup.description}`, backup.projectId || '');
+                        }
+                        const updates = {};
+                        for (const e of entries) updates[e.path] = e.exists ? e.value : null;
+                        await db.ref().update(updates);
+                        alert('✅ 還原成功。原備份仍保留，不會自動刪除。');
+                        await this.loadBackups();
+                    } catch (err) { alert('還原中止：' + friendlyError(err)); }
+                    finally { this.restoring = false; }
+                }
             }
         }).mount('#app');
     </script>
