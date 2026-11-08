@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>即時提問互動牆｜一專案多題目（v2.2）</title>
+    <title>即時提問互動牆｜一專案多題目（v2.3）</title>
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
@@ -111,6 +111,45 @@
         .control-label { color: #cfd8dc; font-size: 0.9rem; margin-right: 5px; }
         .upload-wrapper { display: flex; flex-direction: column; }
         .full-width-input { padding: 8px; border-radius: 4px; border: none; font-size: 0.9rem; width: 250px;}
+
+        /* v2.3：講師投影模式只在主畫面顯示當前題目與上一題／下一題。 */
+        .projection-topic-panel { padding: 18px 22px; }
+        .projection-topic-nav { display: grid; grid-template-columns: auto minmax(0, 1fr) auto;
+            align-items: center; gap: 15px; width: 100%; }
+        .projection-topic-title { margin: 0 !important; color: #0f172a; font-size: clamp(1.5rem, 2.4vw, 2.25rem) !important;
+            font-weight: 800; line-height: 1.38; text-align: center; overflow-wrap: anywhere; white-space: pre-wrap; }
+        .projection-nav-btn { white-space: nowrap; padding: 12px 18px; margin: 0; font-size: 1.05rem; font-weight: 700; }
+        .projection-nav-btn:disabled { opacity: .36; cursor: not-allowed; transform: none; }
+
+        /* 題目管理搬入可收合的底部設定區：投影時預設完全收合。 */
+        .bottom-toggle-btn { border: 0; width: 88px; font: inherit; font-size: .86rem; height: 32px;
+            top: -32px; line-height: 32px; padding: 0; }
+        .bottom-control-bar.hidden .bottom-toggle-btn { top: -32px; }
+        .control-content { display: block; max-height: 49vh; overflow-y: auto; overscroll-behavior: contain;
+            padding: 14px 24px 20px; }
+        .settings-section { padding: 10px 0; }
+        .settings-section + .settings-section { border-top: 1px solid rgba(255,255,255,.20); }
+        .settings-heading { font-size: 1.06rem; font-weight: 750; color: white; margin: 0 0 9px; }
+        .settings-heading small { margin-left: 10px; color: #cbd5e1; font-size: .82rem; font-weight: 400; }
+        .bottom-control-bar .topic-editor { margin: 6px 0; }
+        .bottom-control-bar .topic-editor select,
+        .bottom-control-bar .topic-editor input { min-width: 160px; padding: 9px 11px; }
+        .bottom-control-bar .topic-editor input { min-width: 240px; }
+        .bottom-topic-selector label { color: #e2e8f0; white-space: nowrap; font-size: .9rem; }
+        .bottom-topic-selector select { flex: 1 1 300px; }
+        .settings-tools { display: flex; align-items: center; flex-wrap: wrap; gap: 9px 19px; }
+        .settings-tools .btn { margin: 3px 0; }
+        .settings-tools .control-group { flex-wrap: wrap; }
+        .settings-help { margin: 7px 0 0; font-size: .8rem; line-height: 1.5; color: #cbd5e1; }
+        @media (max-width: 700px) {
+            .projection-topic-panel { padding: 13px; }
+            .projection-topic-nav { grid-template-columns: 1fr 1fr; gap: 9px; }
+            .projection-topic-title { grid-column: 1 / -1; grid-row: 1; font-size: 1.35rem !important; }
+            .projection-nav-btn { width: 100%; font-size: .95rem; }
+            .control-content { max-height: 59vh; padding: 12px 14px 18px; }
+            .bottom-control-bar .topic-editor input,
+            .bottom-control-bar .topic-editor select { min-width: 0; width: 100%; }
+        }
 
         /* RWD */
         @media (max-width: 850px) {
@@ -289,25 +328,12 @@
             <div class="resizer" :class="{ 'active': isDragging }" @mousedown="startDrag"></div>
             <div class="pane-right">
                 <div v-if="qrStatus" class="status-error" role="alert">{{ qrStatus }}</div>
-                <div class="topic-panel">
-                    <div class="topic-tag">目前向全班顯示 · 第 {{ Math.max(1, currentTopicIndex + 1) }} / {{ topics.length }} 題</div>
-                    <h2>{{ currentTopic.title }}</h2>
-                    <div class="topic-editor">
-                        <button class="btn btn-outline" @click="goRelativeTopic(-1)" :disabled="currentTopicIndex <= 0 || switchBusy">◀ 上一題</button>
-                        <select aria-label="切換題目" :value="activeTopicId" @change="switchTopic($event.target.value)" :disabled="switchBusy">
-                            <option v-for="(topic, idx) in topics" :key="topic.id" :value="topic.id">{{ idx + 1 }}. {{ topic.title }}</option>
-                        </select>
-                        <button class="btn btn-primary" @click="goRelativeTopic(1)" :disabled="currentTopicIndex >= topics.length - 1 || switchBusy">下一題 ▶</button>
+                <div class="topic-panel projection-topic-panel">
+                    <div class="projection-topic-nav">
+                        <button type="button" class="btn btn-outline projection-nav-btn" @click="goRelativeTopic(-1)" :disabled="currentTopicIndex <= 0 || switchBusy">◀ 上一題</button>
+                        <h2 class="projection-topic-title">{{ currentTopic.title }}</h2>
+                        <button type="button" class="btn btn-primary projection-nav-btn" @click="goRelativeTopic(1)" :disabled="currentTopicIndex >= topics.length - 1 || switchBusy">下一題 ▶</button>
                     </div>
-                    <div class="topic-editor">
-                        <input v-model="newTopicTitle" type="text" maxlength="500" placeholder="輸入要問全班的下一道題目..." @keydown.enter="addTopic">
-                        <button class="btn btn-success" @click="addTopic" :disabled="addingTopic || !newTopicTitle.trim()">＋ 新增題目並切換</button>
-                    </div>
-                    <div class="topic-editor">
-                        <button class="btn btn-outline" @click="renameCurrentTopic">✏️ 修改本題內容</button>
-                        <button v-if="activeTopicId !== 'legacy'" class="btn btn-danger" @click="deleteCurrentTopic">🗑️ 移除本題（有備份）</button>
-                    </div>
-                    <div class="topic-hint">學員只要掃描一次固定 QR Code；講師切換後，所有開著學員連結的人都會同步進入本題。每題的提問和按讚各自保存，切回原題即可查看。</div>
                 </div>
                 <div class="q-list">
                     <div v-if="loadingTopic" class="loading-topic">正在載入本題提問...</div>
@@ -337,17 +363,36 @@
         </div>
 
         <div v-if="viewMode === 'teacher'" class="bottom-control-bar" :class="{ 'hidden': !showControls }">
-            <div class="bottom-toggle-btn" @click="showControls = !showControls">{{ showControls ? '▼ 隱藏' : '▲ 設定' }}</div>
-            <div class="control-content">
-                <div class="control-group"><span class="control-label">自訂標題：</span><input type="text" v-model="courseTitle" placeholder="例如：12/25 專案管理實務" class="full-width-input" @change="saveSettings"></div>
-                <div class="control-group"><span class="control-label">排序：</span><button class="btn" :class="sortBy === 'likes' ? 'btn-primary' : 'btn-dark'" @click="sortBy = 'likes'">👍 熱門</button><button class="btn" :class="sortBy === 'time' ? 'btn-primary' : 'btn-dark'" @click="sortBy = 'time'">🕒 時間</button></div>
-                <div class="control-group"><span class="control-label">時間：</span><button class="btn" :class="showTimeSetting ? 'btn-toggle-on' : 'btn-toggle-off'" @click="toggleTimeSetting">{{ showTimeSetting ? '👁️' : '🙈' }}</button></div>
-                <div class="control-group upload-wrapper"><span class="control-label">舊版附加 QR 圖：</span><input type="file" accept="image/*" @change="handleQrUpload" style="color: white; font-size: 0.8rem; width: 180px;"></div>
-                <div class="control-group" v-if="qrCodeUrl">
-                    <details class="qr-old"><summary>查看舊版附加圖片</summary><img :src="qrCodeUrl" alt="舊版自訂 QR 圖片"></details>
-                </div>
-                <div class="control-group"><button class="btn btn-danger" @click="clearAllData">🗑️ 清空本題提問（可還原）</button>
-                    <button class="btn btn-outline" @click="openAdminRecovery">🗃️ 開啟管理後台／還原中心</button></div>
+            <button type="button" class="bottom-toggle-btn" aria-controls="teacher-settings-panel" :aria-expanded="showControls ? 'true' : 'false'" @click="showControls = !showControls">{{ showControls ? '▼ 隱藏' : '▲ 設定' }}</button>
+            <div id="teacher-settings-panel" class="control-content" :aria-hidden="!showControls" :inert="!showControls">
+                <section class="settings-section" aria-label="題目管理">
+                    <div class="settings-heading">題目管理<small>目前第 {{ Math.max(1, currentTopicIndex + 1) }} / {{ topics.length }} 題</small></div>
+                    <div class="topic-editor bottom-topic-selector">
+                        <label for="topic-select-settings">選擇題目：</label>
+                        <select id="topic-select-settings" :value="activeTopicId" @change="switchTopic($event.target.value)" :disabled="switchBusy" aria-label="選擇全班目前題目">
+                            <option v-for="(topic, idx) in topics" :key="topic.id" :value="topic.id">{{ idx + 1 }}. {{ topic.title }}</option>
+                        </select>
+                    </div>
+                    <div class="topic-editor">
+                        <input v-model="newTopicTitle" type="text" maxlength="500" placeholder="輸入要問全班的下一道題目..." @keydown.enter="addTopic" aria-label="新題目內容">
+                        <button type="button" class="btn btn-success" @click="addTopic" :disabled="addingTopic || !newTopicTitle.trim()">＋ 新增題目並切換</button>
+                        <button type="button" class="btn btn-outline" @click="renameCurrentTopic">✏️ 修改本題內容</button>
+                        <button v-if="activeTopicId !== 'legacy'" type="button" class="btn btn-danger" @click="deleteCurrentTopic">🗑️ 移除本題（有備份）</button>
+                    </div>
+                    <p class="settings-help">題目會同步至同一專案的所有學員；不同題目的提問與按讚各自保留。這些設定不會出現在上方投影主畫面。</p>
+                </section>
+                <section class="settings-section" aria-label="其他設定">
+                    <div class="settings-heading">其他設定</div>
+                    <div class="settings-tools">
+                        <div class="control-group"><span class="control-label">QR 下方自訂文字：</span><input type="text" v-model="courseTitle" placeholder="例如：因應趨勢應變 練習／交流" class="full-width-input" @change="saveSettings"></div>
+                        <div class="control-group"><span class="control-label">排序：</span><button class="btn" :class="sortBy === 'likes' ? 'btn-primary' : 'btn-dark'" @click="sortBy = 'likes'">👍 熱門</button><button class="btn" :class="sortBy === 'time' ? 'btn-primary' : 'btn-dark'" @click="sortBy = 'time'">🕒 時間</button></div>
+                        <div class="control-group"><span class="control-label">時間：</span><button class="btn" :class="showTimeSetting ? 'btn-toggle-on' : 'btn-toggle-off'" @click="toggleTimeSetting">{{ showTimeSetting ? '👁️' : '🙈' }}</button></div>
+                        <div class="control-group upload-wrapper"><span class="control-label">舊版附加 QR 圖：</span><input type="file" accept="image/*" @change="handleQrUpload" style="color: white; font-size: 0.8rem; width: 180px;"></div>
+                        <div class="control-group" v-if="qrCodeUrl"><details class="qr-old"><summary>查看舊版附加圖片</summary><img :src="qrCodeUrl" alt="舊版自訂 QR 圖片"></details></div>
+                        <div class="control-group"><button class="btn btn-danger" @click="clearAllData">🗑️ 清空本題提問（可還原）</button>
+                            <button class="btn btn-outline" @click="openAdminRecovery">🗃️ 開啟管理後台／還原中心</button></div>
+                    </div>
+                </section>
             </div>
         </div>
     </div>
@@ -382,7 +427,7 @@
                     viewMode: '', isAuthenticated: false, adminPasswordInput: '',
                     roomId: '', rooms: [], projectName: '', newRoomName: '', hasLegacyData: false,
                     isLoading: true, loadingTopic: false, connectionError: '',
-                    showControls: true, leftWidth: 350, isDragging: false,
+                    showControls: false, leftWidth: 350, isDragging: false,
                     questions: [], newQuestionText: '', editingId: null, editingText: '', editingTopicId: null,
                     myAuthorId: '', myLikedIds: [], legacyLikedIds: [], processingLikes: {}, submitting: false,
                     sortBy: 'likes', qrCodeUrl: '', qrStatus: '', showTimeSetting: true, courseTitle: '',
