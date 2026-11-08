@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>即時提問互動牆｜一專案多題目</title>
+    <title>即時提問互動牆｜一專案多題目（v2.2）</title>
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
@@ -138,9 +138,10 @@
         .student-topic h2 { font-size:1.3rem; margin:7px 0; color:#0c4a6e; line-height:1.5; white-space:pre-wrap; overflow-wrap:anywhere; }
         .qr-auto-box { display:flex; justify-content:center; align-items:center; min-height:230px; padding:8px 0; }
         .qr-auto-box img, .qr-auto-box canvas { max-width:100%; height:auto; display:block; background:#fff; }
-        .project-fixed-link { display:block; margin:9px auto; font-size:.72rem; color:#475569; word-break:break-all; user-select:all; }
-        .qr-note { color:#047857; font-size:.88rem; font-weight:600; margin:8px 0; }
-        .qr-old { margin-top:14px; font-size:.83rem; text-align:left; color:#64748b; }
+        /* v2.2：講師 QR 區只顯示「掃描加入」／固定 QR／自訂文字，其他控制項不置於 QR 上下。 */
+        .qr-custom-caption { margin-top:16px; color:#334155; text-align:center; font-size:1.22rem;
+            font-weight:700; white-space:pre-wrap; overflow-wrap:anywhere; line-height:1.55; }
+        .qr-old { margin-top:8px; font-size:.83rem; text-align:left; color:#e2e8f0; }
         .qr-old img { display:block; max-width:100%; max-height:250px; object-fit:contain; margin:10px auto; }
         .recovery-panel { margin:16px 0 40px; padding:20px; border-radius:12px; border:1px solid #cbd5e1; background:#fff; }
         .recovery-item { display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:14px;
@@ -280,21 +281,14 @@
         <div v-if="viewMode === 'teacher'" class="teacher-layout">
             <div class="pane-left" :style="{ width: leftWidth + 'px' }">
                 <div class="qr-display-panel">
-                    <h3 style="margin-top:0; color:#444;">掃描加入此專案</h3>
-                    <div class="qr-note">✅ 本專案固定 QR Code，切換題目也不變</div>
+                    <h3 style="margin-top:0; color:#444;">掃描加入</h3>
                     <div ref="fixedQr" class="qr-auto-box"></div>
-                    <div v-if="qrStatus" class="qr-placeholder" style="padding:15px;">{{ qrStatus }}</div>
-                    <button class="btn btn-primary" @click="copyStudentLink(roomId)">🔗 複製固定學員連結</button>
-                    <div class="project-fixed-link">{{ studentLink }}</div>
-                    <div class="course-title-display">{{ displayCourseTitle }}</div>
-                    <details v-if="qrCodeUrl" class="qr-old">
-                        <summary>查看舊版自訂 QR 圖片（不保證指向本專案）</summary>
-                        <img :src="qrCodeUrl" alt="原有自訂 QR 圖片">
-                    </details>
+                    <div v-if="courseTitle && courseTitle.trim()" class="qr-custom-caption">{{ courseTitle }}</div>
                 </div>
             </div>
             <div class="resizer" :class="{ 'active': isDragging }" @mousedown="startDrag"></div>
             <div class="pane-right">
+                <div v-if="qrStatus" class="status-error" role="alert">{{ qrStatus }}</div>
                 <div class="topic-panel">
                     <div class="topic-tag">目前向全班顯示 · 第 {{ Math.max(1, currentTopicIndex + 1) }} / {{ topics.length }} 題</div>
                     <h2>{{ currentTopic.title }}</h2>
@@ -349,6 +343,9 @@
                 <div class="control-group"><span class="control-label">排序：</span><button class="btn" :class="sortBy === 'likes' ? 'btn-primary' : 'btn-dark'" @click="sortBy = 'likes'">👍 熱門</button><button class="btn" :class="sortBy === 'time' ? 'btn-primary' : 'btn-dark'" @click="sortBy = 'time'">🕒 時間</button></div>
                 <div class="control-group"><span class="control-label">時間：</span><button class="btn" :class="showTimeSetting ? 'btn-toggle-on' : 'btn-toggle-off'" @click="toggleTimeSetting">{{ showTimeSetting ? '👁️' : '🙈' }}</button></div>
                 <div class="control-group upload-wrapper"><span class="control-label">舊版附加 QR 圖：</span><input type="file" accept="image/*" @change="handleQrUpload" style="color: white; font-size: 0.8rem; width: 180px;"></div>
+                <div class="control-group" v-if="qrCodeUrl">
+                    <details class="qr-old"><summary>查看舊版附加圖片</summary><img :src="qrCodeUrl" alt="舊版自訂 QR 圖片"></details>
+                </div>
                 <div class="control-group"><button class="btn btn-danger" @click="clearAllData">🗑️ 清空本題提問（可還原）</button>
                     <button class="btn btn-outline" @click="openAdminRecovery">🗃️ 開啟管理後台／還原中心</button></div>
             </div>
@@ -356,10 +353,16 @@
     </div>
 
     <script>
-        const { createApp } = Vue;
+        const { createApp, markRaw } = Vue;
+        // v2.1 修正：不要讓 Vue 3 對 Firebase RTDB 的 Reference 進行 Proxy。
+        // Firebase 內部用到 SortedMap.insert() 等私有方法；將 Reference 放入 reactive data() 後
+        // 若沒有 markRaw()，其內部物件可能被深層代理，寫入就會出現 e.insert is not a function。
+        // 一定要先 markRaw，再把監聽物件放進 Vue data，且 .on/.off 均以原始物件執行。
         const firebaseConfig = { apiKey: "AIzaSyDUPGhkiJgxeYDYHqEaXCYvKh2vdTGqypw", authDomain: "class-discussion-01.firebaseapp.com", databaseURL: "https://class-discussion-01-default-rtdb.firebaseio.com", projectId: "class-discussion-01", storageBucket: "class-discussion-01.firebasestorage.app", messagingSenderId: "724687365020", appId: "1:724687365020:web:380b5d85872dc2d9b85e59", measurementId: "G-XYN5JV48T7" };
         firebase.initializeApp(firebaseConfig);
         const db = firebase.database();
+        const rawFirebaseRef = path => markRaw(db.ref(path));
+        // 保留所有 v2 原本的 Firebase 路徑與資料結構，這次不執行遷移或清空。
         const LEGACY_TOPIC = 'legacy'; // 舊資料原封不動放在 /questions；永遠不直接遷移或覆寫。
         const safeId = id => typeof id === 'string' && /^[a-zA-Z0-9_-]{1,160}$/.test(id);
         const own = (obj, key) => Object.prototype.hasOwnProperty.call(obj, key);
@@ -409,7 +412,6 @@
                     }
                     return list;
                 },
-                displayCourseTitle() { return this.courseTitle || this.projectName || '即時提問互動牆'; },
                 studentLink() { return this.roomId ? projectLink(this.roomId) : ''; }
             },
             watch: {
@@ -460,15 +462,15 @@
                     this.legacyLikedIds = Array.isArray(older) ? older : [];
                 } catch (_) { this.myLikedIds = []; this.legacyLikedIds = []; }
                 this.newQuestionText = this.loadDraft(LEGACY_TOPIC);
-                this.roomNameListener = db.ref(`qa_system_rooms/${room}/name`);
+                this.roomNameListener = rawFirebaseRef(`qa_system_rooms/${room}/name`);
                 this.roomNameListener.on('value', snap => { this.projectName = snap.val() || ''; }, err => this.onDbError(err));
-                this.topicListener = db.ref(`qa_rooms_data/${room}/topics`);
+                this.topicListener = rawFirebaseRef(`qa_rooms_data/${room}/topics`);
                 this.topicListener.on('value', snap => {
                     const val = snap.val() || {};
                     this.extraTopics = Object.keys(val).map(id => ({id, ...val[id]}))
                         .sort((a,b) => (Number(a.createdAt) || 0) - (Number(b.createdAt) || 0) || a.id.localeCompare(b.id));
                 }, err => this.onDbError(err));
-                this.settingsListener = db.ref(`qa_rooms_data/${room}/settings`);
+                this.settingsListener = rawFirebaseRef(`qa_rooms_data/${room}/settings`);
                 this.settingsListener.on('value', snap => {
                     const val = snap.val() || {};
                     this.courseTitle = val.courseTitle || '';
@@ -507,7 +509,7 @@
                     const topicId = this.activeTopicId;
                     this.questions = [];
                     this.loadingTopic = true;
-                    this.questionListener = db.ref(this.topicQuestionsPath(topicId));
+                    this.questionListener = rawFirebaseRef(this.topicQuestionsPath(topicId));
                     this.questionListener.on('value', snap => {
                         if (topicId !== this.activeTopicId) return;
                         const val = snap.val() || {};
@@ -849,7 +851,7 @@
                         this.qrStatus = '請先把 HTML 部署在 HTTPS 網站，才可產生可供學員掃描的固定專案 QR。';
                         return;
                     }
-                    if (!window.QRCode) { this.qrStatus = 'QR 產生元件未載入，請檢查 CDN 網路；仍可複製學員連結。'; return; }
+                    if (!window.QRCode) { this.qrStatus = 'QR 產生元件未載入，請檢查 CDN 網路。學員連結仍可在管理首頁複製。'; return; }
                     const target = this.$refs.fixedQr;
                     if (!target) return;
                     target.replaceChildren();
